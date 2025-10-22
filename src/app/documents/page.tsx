@@ -23,6 +23,7 @@ interface Document {
   status: "Active" | "Archived";
   category: string;
   tags: string[];
+  filePath?: string; // new
 }
 
 export default function DocumentsPage() {
@@ -40,7 +41,6 @@ export default function DocumentsPage() {
     setIsUploading(true);
 
     try {
-      // Send file to backend API (which uploads to Qdrant)
       const formData = new FormData();
       formData.append("file", file);
 
@@ -49,13 +49,9 @@ export default function DocumentsPage() {
         body: formData,
       });
 
-      if (!response.ok) {
-        throw new Error("Upload failed");
-      }
-
+      if (!response.ok) throw new Error("Upload failed");
       const data = await response.json();
 
-      // Add uploaded document to state
       const newDoc: Document = {
         id: data.id || Date.now().toString(),
         name: file.name,
@@ -65,6 +61,7 @@ export default function DocumentsPage() {
         status: "Active",
         category: "Uploads (User-Provided Documents)",
         tags: ["Uploaded"],
+        filePath: `/uploads/${file.name}`, // store local path
       };
 
       setDocuments((prev) => [newDoc, ...prev]);
@@ -74,6 +71,44 @@ export default function DocumentsPage() {
       alert("Error uploading document.");
     } finally {
       setIsUploading(false);
+    }
+  };
+
+  // 🔹 Actions
+  const handleView = (doc: Document) => {
+    if (doc.filePath) window.open(doc.filePath, "_blank");
+    else alert("File not available.");
+  };
+
+  const handleEdit = (id: string) => {
+    const newName = prompt("Enter new document name:");
+    if (!newName) return;
+    setDocuments((prev) =>
+      prev.map((doc) => (doc.id === id ? { ...doc, name: newName } : doc))
+    );
+  };
+
+  const handleDownload = async (doc: Document) => {
+    try {
+      if (!doc.filePath) {
+        alert("File not found on server.");
+        return;
+      }
+      const link = document.createElement("a");
+      link.href = doc.filePath;
+      link.download = doc.name;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch (err) {
+      console.error(err);
+      alert("Failed to download file.");
+    }
+  };
+
+  const handleDelete = (id: string) => {
+    if (confirm("Are you sure you want to delete this document?")) {
+      setDocuments((prev) => prev.filter((doc) => doc.id !== id));
     }
   };
 
@@ -89,8 +124,9 @@ export default function DocumentsPage() {
 
   return (
     <div className="min-h-screen bg-background">
+      {" "}
       <TopNav />
-
+      ```
       <div className="p-8">
         <div className="flex items-start justify-between mb-8">
           <div>
@@ -100,7 +136,6 @@ export default function DocumentsPage() {
             </p>
           </div>
 
-          {/* Hidden file input */}
           <input
             type="file"
             id="fileUpload"
@@ -119,7 +154,6 @@ export default function DocumentsPage() {
           </Button>
         </div>
 
-        {/* Search */}
         <div className="mb-6">
           <div className="relative">
             <Search className="absolute left-3 top-3 w-4 h-4 text-muted-foreground" />
@@ -132,7 +166,6 @@ export default function DocumentsPage() {
           </div>
         </div>
 
-        {/* Documents Section */}
         <Card className="overflow-hidden">
           <div className="p-6 border-b border-border">
             <h2 className="font-semibold">All Documents</h2>
@@ -217,10 +250,19 @@ export default function DocumentsPage() {
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
-                          <DropdownMenuItem>View</DropdownMenuItem>
-                          <DropdownMenuItem>Edit</DropdownMenuItem>
-                          <DropdownMenuItem>Download</DropdownMenuItem>
-                          <DropdownMenuItem className="text-destructive">
+                          <DropdownMenuItem onClick={() => handleView(doc)}>
+                            View
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => handleEdit(doc.id)}>
+                            Edit
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => handleDownload(doc)}>
+                            Download
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={() => handleDelete(doc.id)}
+                            className="text-destructive"
+                          >
                             Delete
                           </DropdownMenuItem>
                         </DropdownMenuContent>
