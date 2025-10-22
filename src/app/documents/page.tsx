@@ -27,95 +27,65 @@ interface Document {
 
 export default function DocumentsPage() {
   const [searchQuery, setSearchQuery] = useState("");
+  const [documents, setDocuments] = useState<Document[]>([]);
+  const [isUploading, setIsUploading] = useState(false);
 
-  const documents: Document[] = [
-    {
-      id: "1",
-      name: "Finance_SOP_v2.pdf",
-      type: "PDF",
-      version: "v2.0",
-      uploaded: "2025-10-08",
-      status: "Active",
-      category: "Invoices & Financial Docs",
-      tags: ["Finance", "Procedures"],
-    },
-    {
-      id: "2",
-      name: "HR_Policies_v3.pdf",
-      type: "PDF",
-      version: "v3.0",
-      uploaded: "2025-10-07",
-      status: "Active",
-      category: "Contracts & Agreements",
-      tags: ["HR", "Policies"],
-    },
-    {
-      id: "3",
-      name: "IT_Security_SOP_v2.docx",
-      type: "Word",
-      version: "v2.0",
-      uploaded: "2025-10-06",
-      status: "Active",
-      category: "Internal Notes / Meeting Summaries",
-      tags: ["IT", "Security"],
-    },
-    {
-      id: "4",
-      name: "Operations_Manual_v1.pdf",
-      type: "PDF",
-      version: "v1.0",
-      uploaded: "2025-10-05",
-      status: "Active",
-      category: "Treatment / Work Plans",
-      tags: ["Operations"],
-    },
-    {
-      id: "5",
-      name: "Customer_Support_Guide.pdf",
-      type: "PDF",
-      version: "v1.5",
-      uploaded: "2025-10-04",
-      status: "Archived",
-      category: "Assessments & Reports",
-      tags: ["Support", "Customer"],
-    },
-    {
-      id: "6",
-      name: "Sales_Procedures_Scanned.pdf",
-      type: "PDF (Scanned)",
-      version: "v1.0",
-      uploaded: "2025-10-03",
-      status: "Active",
-      category: "Uploads (User-Provided Documents)",
-      tags: ["Sales"],
-    },
-    {
-      id: "7",
-      name: "Compliance_Checklist_v4.pdf",
-      type: "PDF",
-      version: "v4.0",
-      uploaded: "2025-10-02",
-      status: "Active",
-      category: "Assessments & Reports",
-      tags: ["Compliance", "Legal"],
-    },
-    {
-      id: "8",
-      name: "Onboarding_Guide.docx",
-      type: "Word",
-      version: "v2.1",
-      uploaded: "2025-10-01",
-      status: "Archived",
-      category: "Internal Notes / Meeting Summaries",
-      tags: ["HR", "Onboarding"],
-    },
-  ];
+  // 🔹 Handle file upload
+  const handleFileUpload = async (
+    event: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setIsUploading(true);
+
+    try {
+      // Send file to backend API (which uploads to Qdrant)
+      const formData = new FormData();
+      formData.append("file", file);
+
+      const response = await fetch("/api/upload-to-qdrant", {
+        method: "POST",
+        body: formData,
+      });
+
+      if (!response.ok) {
+        throw new Error("Upload failed");
+      }
+
+      const data = await response.json();
+
+      // Add uploaded document to state
+      const newDoc: Document = {
+        id: data.id || Date.now().toString(),
+        name: file.name,
+        type: file.name.split(".").pop()?.toUpperCase() || "Unknown",
+        version: "v1.0",
+        uploaded: new Date().toISOString().split("T")[0],
+        status: "Active",
+        category: "Uploads (User-Provided Documents)",
+        tags: ["Uploaded"],
+      };
+
+      setDocuments((prev) => [newDoc, ...prev]);
+      alert("File uploaded successfully!");
+    } catch (error) {
+      console.error(error);
+      alert("Error uploading document.");
+    } finally {
+      setIsUploading(false);
+    }
+  };
 
   const getStatusColor = (status: string) => {
     return status === "Active"
       ? "bg-green-100 text-green-800"
       : "bg-gray-100 text-gray-800";
   };
+
+  const filteredDocs = documents.filter((doc) =>
+    doc.name.toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
   return (
     <div className="min-h-screen bg-background">
@@ -129,9 +99,23 @@ export default function DocumentsPage() {
               Upload and manage your SOP documents
             </p>
           </div>
-          <Button className="bg-blue-500 hover:bg-blue-600 text-white">
+
+          {/* Hidden file input */}
+          <input
+            type="file"
+            id="fileUpload"
+            accept=".pdf,.docx,.txt"
+            className="hidden"
+            onChange={handleFileUpload}
+          />
+
+          <Button
+            className="bg-blue-500 hover:bg-blue-600 text-white"
+            onClick={() => document.getElementById("fileUpload")?.click()}
+            disabled={isUploading}
+          >
             <Upload className="w-4 h-4 mr-2" />
-            Upload Document
+            {isUploading ? "Uploading..." : "Upload Document"}
           </Button>
         </div>
 
@@ -157,7 +141,6 @@ export default function DocumentsPage() {
             </p>
           </div>
 
-          {/* Table */}
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
@@ -189,7 +172,7 @@ export default function DocumentsPage() {
                 </tr>
               </thead>
               <tbody>
-                {documents.map((doc) => (
+                {filteredDocs.map((doc) => (
                   <tr
                     key={doc.id}
                     className="border-b border-border hover:bg-muted/50 transition-colors"
