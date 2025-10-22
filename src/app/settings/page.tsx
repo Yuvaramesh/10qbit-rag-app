@@ -26,7 +26,8 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "../../components/ui/dropdown-menu";
-
+import { Shield } from "lucide-react";
+import { Mail } from "lucide-react";
 export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState("team");
 
@@ -72,14 +73,26 @@ export default function SettingsPage() {
     {
       name: "Google Drive",
       description: "Sync documents from Google Drive",
-      icon: "🔵",
+      color: "bg-blue-100",
+      iconColor: "text-blue-600",
+      iconPath: "M7 6 L13 6 L18 13 L13 13 L7 6 Z M6 15 L18 15 L16 18 L8 18 Z",
     },
     {
       name: "Microsoft SharePoint",
       description: "Import from SharePoint libraries",
-      icon: "🟣",
+      color: "bg-purple-100",
+      iconColor: "text-purple-600",
+      iconPath:
+        "M6 7 C8 5 10 5 12 7 C14 9 16 9 18 7 L18 17 C16 19 14 19 12 17 C10 15 8 15 6 17 Z", // SharePoint flag/wave
     },
-    { name: "Dropbox", description: "Connect to Dropbox folders", icon: "🟠" },
+    {
+      name: "Dropbox",
+      description: "Connect to Dropbox folders",
+      color: "bg-orange-100",
+      iconColor: "text-orange-600",
+      iconPath:
+        "M8 5 L12 8 L16 5 L20 8 L16 11 L12 8 L8 11 L4 8 Z M8 13 L12 16 L16 13 L20 16 L16 19 L12 16 L8 19 L4 16 Z",
+    },
   ];
 
   return (
@@ -130,7 +143,8 @@ export default function SettingsPage() {
                     Manage user access and permissions
                   </p>
                 </div>
-                <Button className="bg-blue-500 hover:bg-blue-600 text-white">
+                <Button className="flex items-center gap-2 bg-[#0B0B14] hover:bg-[#1a1a27] text-white font-medium px-4 py-2 rounded-lg shadow-sm">
+                  <Mail className="w-4 h-4" strokeWidth={1.8} />
                   Invite User
                 </Button>
               </div>
@@ -223,15 +237,27 @@ export default function SettingsPage() {
                   <h3 className="font-semibold mb-4">Admin</h3>
                   <ul className="space-y-3">
                     <li className="flex items-start gap-3 text-sm">
-                      <div className="w-5 h-5 rounded-full border-2 border-blue-500 bg-blue-500 flex-shrink-0 mt-0.5" />
+                      <Shield
+                        className="w-5 h-5 text-green-500 mt-0.5"
+                        strokeWidth={2}
+                        fill="none"
+                      />
                       <span>Full access to all features</span>
                     </li>
                     <li className="flex items-start gap-3 text-sm">
-                      <div className="w-5 h-5 rounded-full border-2 border-blue-500 bg-blue-500 flex-shrink-0 mt-0.5" />
+                      <Shield
+                        className="w-5 h-5 text-green-500 mt-0.5"
+                        strokeWidth={2}
+                        fill="none"
+                      />{" "}
                       <span>Manage users and settings</span>
                     </li>
                     <li className="flex items-start gap-3 text-sm">
-                      <div className="w-5 h-5 rounded-full border-2 border-blue-500 bg-blue-500 flex-shrink-0 mt-0.5" />
+                      <Shield
+                        className="w-5 h-5 text-green-500 mt-0.5"
+                        strokeWidth={2}
+                        fill="none"
+                      />{" "}
                       <span>Upload and delete documents</span>
                     </li>
                   </ul>
@@ -240,15 +266,27 @@ export default function SettingsPage() {
                   <h3 className="font-semibold mb-4">Editor</h3>
                   <ul className="space-y-3">
                     <li className="flex items-start gap-3 text-sm">
-                      <div className="w-5 h-5 rounded-full border-2 border-blue-500 bg-blue-500 flex-shrink-0 mt-0.5" />
+                      <Shield
+                        className="w-5 h-5 text-blue-500 mt-0.5"
+                        strokeWidth={2}
+                        fill="none"
+                      />{" "}
                       <span>Upload documents</span>
                     </li>
                     <li className="flex items-start gap-3 text-sm">
-                      <div className="w-5 h-5 rounded-full border-2 border-blue-500 bg-blue-500 flex-shrink-0 mt-0.5" />
+                      <Shield
+                        className="w-5 h-5 text-blue-500 mt-0.5"
+                        strokeWidth={2}
+                        fill="none"
+                      />{" "}
                       <span>Use AI assistant</span>
                     </li>
                     <li className="flex items-start gap-3 text-sm">
-                      <div className="w-5 h-5 rounded-full border-2 border-blue-500 bg-blue-500 flex-shrink-0 mt-0.5" />
+                      <Shield
+                        className="w-5 h-5 text-blue-500 mt-0.5"
+                        strokeWidth={2}
+                        fill="none"
+                      />{" "}
                       <span>View analytics</span>
                     </li>
                   </ul>
@@ -257,15 +295,27 @@ export default function SettingsPage() {
                   <h3 className="font-semibold mb-4">User</h3>
                   <ul className="space-y-3">
                     <li className="flex items-start gap-3 text-sm">
-                      <div className="w-5 h-5 rounded-full border-2 border-blue-500 bg-blue-500 flex-shrink-0 mt-0.5" />
+                      <Shield
+                        className="w-5 h-5 text-gray-500 mt-0.5"
+                        strokeWidth={2}
+                        fill="none"
+                      />{" "}
                       <span>Use AI assistant</span>
                     </li>
                     <li className="flex items-start gap-3 text-sm">
-                      <div className="w-5 h-5 rounded-full border-2 border-blue-500 bg-blue-500 flex-shrink-0 mt-0.5" />
+                      <Shield
+                        className="w-5 h-5 text-gray-500 mt-0.5"
+                        strokeWidth={2}
+                        fill="none"
+                      />{" "}
                       <span>View documents</span>
                     </li>
                     <li className="flex items-start gap-3 text-sm">
-                      <div className="w-5 h-5 rounded-full border-2 border-gray-300 flex-shrink-0 mt-0.5" />
+                      <Shield
+                        className="w-5 h-5 text-gray-500 mt-0.5"
+                        strokeWidth={2}
+                        fill="none"
+                      />{" "}
                       <span>Limited analytics access</span>
                     </li>
                   </ul>
@@ -289,7 +339,18 @@ export default function SettingsPage() {
                     className="flex items-center justify-between p-4 border border-border rounded-lg hover:bg-muted/50 transition-colors"
                   >
                     <div className="flex items-center gap-4">
-                      <div className="text-2xl">{integration.icon}</div>
+                      <div
+                        className={`w-12 h-12 ${integration.color} rounded-xl flex items-center justify-center`}
+                      >
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          className={`w-6 h-6 ${integration.iconColor}`}
+                          fill="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path d={integration.iconPath} />
+                        </svg>
+                      </div>
                       <div>
                         <h3 className="font-semibold">{integration.name}</h3>
                         <p className="text-sm text-muted-foreground">
@@ -369,6 +430,7 @@ export default function SettingsPage() {
                       <select className="w-full px-3 py-2 border border-border rounded-lg bg-background text-sm">
                         <option>Semantic Search (AI-Powered)</option>
                         <option>Keyword Search</option>
+                        <option>Hybrid Search</option>
                       </select>
                     </div>
                   </div>
@@ -379,10 +441,14 @@ export default function SettingsPage() {
                     Maximum Sources per Response
                   </label>
                   <div className="flex items-center gap-2">
-                    <Input type="number" defaultValue="3" className="w-24" />
-                    <span className="text-sm text-muted-foreground">
-                      Sources
-                    </span>
+                    <select className="w-full px-3 py-2 border border-border rounded-lg bg-background text-sm">
+                      <option>3 Source</option>
+                      <option>1 Source</option>
+                      <option>3 Sources</option>
+                      <option>5 Sources</option>
+
+                      <option>10 Sources</option>
+                    </select>
                   </div>
                 </div>
               </div>

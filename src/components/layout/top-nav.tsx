@@ -19,7 +19,7 @@ export function TopNav() {
 
   const navItems = [
     { href: "/", label: "AI SOP Assistant" },
-    { href: "/assistant", label: "Assistant" },
+    // { href: "/assistant", label: "Assistant" },
     { href: "/documents", label: "Documents" },
     { href: "/analytics", label: "Analytics" },
     { href: "/settings", label: "Settings" },
