@@ -1,11 +1,8 @@
 import { NextResponse } from "next/server";
 import PDFParser from "pdf2json";
 import mammoth from "mammoth";
-import fs from "fs/promises";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { MongoClient } from "mongodb";
-import path from "path";
-import os from "os";
 
 export const runtime = "nodejs";
 
@@ -26,7 +23,7 @@ async function getDB() {
 // Gemini API Setup
 const genAI = new GoogleGenerativeAI(process.env.NEXT_PUBLIC_GEMINI_API_KEY!);
 
-async function extractTextFromPDF(filePath: string): Promise<string> {
+async function extractTextFromPDF(buffer: Buffer): Promise<string> {
   return new Promise((resolve, reject) => {
     const pdfParser = new (PDFParser as any)(null, 1);
 
@@ -54,7 +51,7 @@ async function extractTextFromPDF(filePath: string): Promise<string> {
       }
     });
 
-    pdfParser.loadPDF(filePath);
+    pdfParser.parseBuffer(buffer);
   });
 }
 
@@ -100,18 +97,12 @@ export async function POST(request: Request) {
     const arrayBuffer = await file.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
 
-    const tempDir = path.join(os.tmpdir(), "uploads");
-    await fs.mkdir(tempDir, { recursive: true });
-
-    const filePath = path.join(tempDir, file.name);
-    await fs.writeFile(filePath, buffer);
-
-    // Extract Text
+    // Extract Text directly from buffer
     let textContent = "";
     if (file.name.endsWith(".pdf")) {
-      textContent = await extractTextFromPDF(filePath);
+      textContent = await extractTextFromPDF(buffer);
     } else if (file.name.endsWith(".docx")) {
-      const result = await mammoth.extractRawText({ path: filePath });
+      const result = await mammoth.extractRawText({ buffer });
       textContent = result.value;
     } else if (file.name.endsWith(".txt")) {
       textContent = buffer.toString("utf8");
