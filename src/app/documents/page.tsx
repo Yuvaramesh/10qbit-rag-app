@@ -6,17 +6,32 @@ import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
 import { Card } from "../../components/ui/card";
 import { Badge } from "../../components/ui/badge";
-import { Search, Upload, MoreVertical, FileText, Loader2 } from "lucide-react";
+import {
+  Search,
+  Upload,
+  MoreVertical,
+  FileText,
+  Loader2,
+  X,
+} from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "../../components/ui/dropdown-menu";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "../../components/ui/dialog";
+import { Label } from "../../components/ui/label";
 
 interface Document {
-  id: string;
-  name: string;
+  _id: string;
+  fileName: string;
   type: string;
   version: string;
   uploaded: string;
@@ -31,8 +46,14 @@ export default function DocumentsPage() {
   const [documents, setDocuments] = useState<Document[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
 
-  // 🔹 Load existing documents on mount
+  // Form state
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [version, setVersion] = useState("v1.0");
+  const [category, setCategory] = useState("");
+  const [tags, setTags] = useState<string[]>([""]);
+
   useEffect(() => {
     fetchDocuments();
   }, []);
@@ -40,7 +61,7 @@ export default function DocumentsPage() {
   const fetchDocuments = async () => {
     try {
       setIsLoading(true);
-      const response = await fetch("/api/upload-to-qdrant");
+      const response = await fetch("/api/upload");
       if (!response.ok) {
         console.error("Failed to fetch documents");
         setDocuments([]);
@@ -57,14 +78,10 @@ export default function DocumentsPage() {
     }
   };
 
-  // 🔹 Handle file upload
-  const handleFileUpload = async (
-    event: React.ChangeEvent<HTMLInputElement>
-  ) => {
+  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
 
-    // Validate file type
     const validTypes = [".pdf", ".docx", ".txt"];
     const fileExtension = file.name.substring(file.name.lastIndexOf("."));
 
@@ -73,13 +90,55 @@ export default function DocumentsPage() {
       return;
     }
 
+    setSelectedFile(file);
+  };
+
+  const handleAddTag = () => {
+    if (tags.length < 5) {
+      setTags([...tags, ""]);
+    }
+  };
+
+  const handleRemoveTag = (index: number) => {
+    setTags(tags.filter((_, i) => i !== index));
+  };
+
+  const handleTagChange = (index: number, value: string) => {
+    const newTags = [...tags];
+    newTags[index] = value;
+    setTags(newTags);
+  };
+
+  const resetForm = () => {
+    setSelectedFile(null);
+    setVersion("v1.0");
+    setCategory("");
+    setTags([""]);
+  };
+
+  const handleSaveUpload = async () => {
+    if (!selectedFile) {
+      alert("Please select a file to upload.");
+      return;
+    }
+
+    if (!category.trim()) {
+      alert("Please enter a category.");
+      return;
+    }
+
+    const filteredTags = tags.filter((tag) => tag.trim() !== "");
+
     setIsUploading(true);
 
     try {
       const formData = new FormData();
-      formData.append("file", file);
+      formData.append("file", selectedFile);
+      formData.append("version", version);
+      formData.append("category", category);
+      formData.append("tags", JSON.stringify(filteredTags));
 
-      const response = await fetch("/api/upload-to-qdrant", {
+      const response = await fetch("/api/upload", {
         method: "POST",
         body: formData,
       });
@@ -92,32 +151,32 @@ export default function DocumentsPage() {
       const data = await response.json();
 
       const newDoc: Document = {
-        id: data.id || Date.now().toString(),
-        name: file.name,
-        type: file.name.split(".").pop()?.toUpperCase() || "Unknown",
-        version: "v1.0",
+        _id: data.documentId || Date.now().toString(),
+        fileName: selectedFile.name,
+        type: selectedFile.name.split(".").pop()?.toUpperCase() || "Unknown",
+        version: version,
         uploaded: new Date().toISOString().split("T")[0],
         status: "Active",
-        category: "Uploads (User-Provided Documents)",
-        tags: ["Uploaded"],
-        filePath: `/uploads/${file.name}`,
+        category: category,
+        tags: filteredTags,
+        filePath: `/uploads/${selectedFile.name}`,
       };
 
       setDocuments((prev) => [newDoc, ...prev]);
       alert(
         `File uploaded successfully! Created ${data.chunks} chunks in vector database.`
       );
+
+      setIsDialogOpen(false);
+      resetForm();
     } catch (error: any) {
       console.error(error);
       alert(`Error uploading document: ${error.message}`);
     } finally {
       setIsUploading(false);
-      // Reset file input
-      event.target.value = "";
     }
   };
 
-  // 🔹 Actions
   const handleView = (doc: Document) => {
     if (doc.filePath) {
       window.open(doc.filePath, "_blank");
@@ -130,7 +189,7 @@ export default function DocumentsPage() {
     const newName = prompt("Enter new document name:");
     if (!newName) return;
     setDocuments((prev) =>
-      prev.map((doc) => (doc.id === id ? { ...doc, name: newName } : doc))
+      prev.map((doc) => (doc._id === id ? { ...doc, fileName: newName } : doc))
     );
   };
 
@@ -142,7 +201,7 @@ export default function DocumentsPage() {
       }
       const link = document.createElement("a");
       link.href = doc.filePath;
-      link.download = doc.name;
+      link.download = doc.fileName;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -153,12 +212,16 @@ export default function DocumentsPage() {
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm("Are you sure you want to delete this document?")) {
+    if (!confirm("Are you sure you want to archive this document?")) {
       return;
     }
 
-    // TODO: Add API endpoint to delete from Qdrant
-    setDocuments((prev) => prev.filter((doc) => doc.id !== id));
+    // Update status to Archived instead of deleting
+    setDocuments((prev) =>
+      prev.map((doc) =>
+        doc._id === id ? { ...doc, status: "Archived" as const } : doc
+      )
+    );
   };
 
   const getStatusColor = (status: string) => {
@@ -168,7 +231,7 @@ export default function DocumentsPage() {
   };
 
   const filteredDocs = documents.filter((doc) =>
-    doc.name.toLowerCase().includes(searchQuery.toLowerCase())
+    doc.fileName.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   return (
@@ -184,30 +247,13 @@ export default function DocumentsPage() {
             </p>
           </div>
 
-          <input
-            type="file"
-            id="fileUpload"
-            accept=".pdf,.docx,.txt"
-            className="hidden"
-            onChange={handleFileUpload}
-          />
-
           <Button
             className="bg-blue-500 hover:bg-blue-600 text-white"
-            onClick={() => document.getElementById("fileUpload")?.click()}
+            onClick={() => setIsDialogOpen(true)}
             disabled={isUploading}
           >
-            {isUploading ? (
-              <>
-                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                Uploading...
-              </>
-            ) : (
-              <>
-                <Upload className="w-4 h-4 mr-2" />
-                Upload Document
-              </>
-            )}
+            <Upload className="w-4 h-4 mr-2" />
+            Upload Document
           </Button>
         </div>
 
@@ -279,14 +325,14 @@ export default function DocumentsPage() {
                 <tbody>
                   {filteredDocs.map((doc) => (
                     <tr
-                      key={doc.id}
+                      key={doc._id}
                       className="border-b border-border hover:bg-muted/50 transition-colors"
                     >
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-2">
                           <FileText className="w-4 h-4 text-muted-foreground" />
                           <span className="font-medium text-sm">
-                            {doc.name}
+                            {doc.fileName}
                           </span>
                         </div>
                       </td>
@@ -305,9 +351,9 @@ export default function DocumentsPage() {
                       </td>
                       <td className="px-6 py-4">
                         <div className="flex gap-1 flex-wrap">
-                          {doc.tags.map((tag) => (
+                          {doc.tags.map((tag, idx) => (
                             <Badge
-                              key={tag}
+                              key={idx}
                               variant="secondary"
                               className="text-xs"
                             >
@@ -328,7 +374,7 @@ export default function DocumentsPage() {
                               View
                             </DropdownMenuItem>
                             <DropdownMenuItem
-                              onClick={() => handleEdit(doc.id)}
+                              onClick={() => handleEdit(doc._id)}
                             >
                               Edit
                             </DropdownMenuItem>
@@ -338,10 +384,10 @@ export default function DocumentsPage() {
                               Download
                             </DropdownMenuItem>
                             <DropdownMenuItem
-                              onClick={() => handleDelete(doc.id)}
+                              onClick={() => handleDelete(doc._id)}
                               className="text-destructive"
                             >
-                              Delete
+                              Archive
                             </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
@@ -354,6 +400,116 @@ export default function DocumentsPage() {
           </div>
         </Card>
       </div>
+
+      {/* Upload Dialog */}
+      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>Upload Document</DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="file">Document File *</Label>
+              <Input
+                id="file"
+                type="file"
+                accept=".pdf,.docx,.txt"
+                onChange={handleFileSelect}
+              />
+              {selectedFile && (
+                <p className="text-sm text-muted-foreground">
+                  Selected: {selectedFile.name}
+                </p>
+              )}
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="version">Version *</Label>
+              <Input
+                id="version"
+                value={version}
+                onChange={(e) => setVersion(e.target.value)}
+                placeholder="e.g., v1.0, v2.1"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="category">Category *</Label>
+              <Input
+                id="category"
+                value={category}
+                onChange={(e) => setCategory(e.target.value)}
+                placeholder="e.g., Safety Procedures, Quality Control"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label>Tags (Max 5)</Label>
+                {tags.length < 5 && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={handleAddTag}
+                  >
+                    Add Tag
+                  </Button>
+                )}
+              </div>
+              <div className="space-y-2">
+                {tags.map((tag, index) => (
+                  <div key={index} className="flex gap-2">
+                    <Input
+                      value={tag}
+                      onChange={(e) => handleTagChange(index, e.target.value)}
+                      placeholder={`Tag ${index + 1}`}
+                    />
+                    {tags.length > 1 && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleRemoveTag(index)}
+                      >
+                        <X className="w-4 h-4" />
+                      </Button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setIsDialogOpen(false);
+                resetForm();
+              }}
+              disabled={isUploading}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleSaveUpload}
+              disabled={isUploading || !selectedFile}
+              className="bg-blue-500 hover:bg-blue-600"
+            >
+              {isUploading ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Uploading...
+                </>
+              ) : (
+                "Save & Upload"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
