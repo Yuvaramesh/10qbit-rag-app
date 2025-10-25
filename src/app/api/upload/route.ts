@@ -199,7 +199,7 @@ export async function GET() {
       ])
       .toArray();
 
-    const formattedDocs = docs.map((doc) => ({
+    const formattedDocs = docs.map((doc: any) => ({
       _id: doc._id,
       fileName: doc.fileName,
       type: doc.fileType,
