@@ -5,6 +5,7 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 import { MongoClient } from "mongodb";
 
 export const runtime = "nodejs";
+export const maxDuration = 60; // Set max duration for Vercel
 
 // MongoDB Connection Setup
 const mongoClient = new MongoClient(
