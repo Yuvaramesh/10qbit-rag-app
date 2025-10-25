@@ -8,21 +8,32 @@ export const runtime = "nodejs";
 export const maxDuration = 60; // Set max duration for Vercel
 
 // MongoDB Connection Setup
-const mongoClient = new MongoClient(
-  process.env.NEXT_PUBLIC_MONGO_CONNECTION_STRING!
-);
+let mongoClient: MongoClient | null = null;
 let db: any;
 
 async function getDB() {
   if (!db) {
-    await mongoClient.connect();
+    const connectionString = process.env.NEXT_PUBLIC_MONGO_CONNECTION_STRING;
+    if (!connectionString) {
+      throw new Error("MongoDB connection string not configured");
+    }
+    if (!mongoClient) {
+      mongoClient = new MongoClient(connectionString);
+      await mongoClient.connect();
+    }
     db = mongoClient.db("Rag");
   }
   return db;
 }
 
 // Gemini API Setup
-const genAI = new GoogleGenerativeAI(process.env.NEXT_PUBLIC_GEMINI_API_KEY!);
+function getGenAI() {
+  const apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY;
+  if (!apiKey) {
+    throw new Error("Gemini API key not configured");
+  }
+  return new GoogleGenerativeAI(apiKey);
+}
 
 async function extractTextFromPDF(buffer: Buffer): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -57,6 +68,7 @@ async function extractTextFromPDF(buffer: Buffer): Promise<string> {
 }
 
 async function generateEmbeddings(text: string): Promise<number[]> {
+  const genAI = getGenAI();
   const model = genAI.getGenerativeModel({ model: "text-embedding-004" });
   const truncatedText = text.substring(0, 10000);
   const result = await model.embedContent(truncatedText);
