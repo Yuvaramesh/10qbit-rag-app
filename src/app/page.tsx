@@ -35,11 +35,7 @@ interface CachedResponse {
   timestamp: number;
 }
 
-const COMMON_QUESTIONS = [
-  "What Vertex Eval Service?",
-  "How does Rag Works?",
-  "What is the law of cricket 22.3?",
-];
+const COMMON_QUESTIONS = ["What Vertex Eval Service?", "How does Rag Works?"];
 
 export default function Home() {
   const [messages, setMessages] = useState<Message[]>([
