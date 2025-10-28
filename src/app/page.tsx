@@ -60,8 +60,12 @@ export default function Home() {
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
+  // ✅ New: Ref for input box
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  // ✅ Focus input when component loads
   useEffect(() => {
-    loadChatHistory();
+    inputRef.current?.focus();
   }, []);
 
   useEffect(() => {
@@ -105,6 +109,10 @@ export default function Home() {
       console.error("❌ Error loading chat history:", error);
     }
   };
+
+  useEffect(() => {
+    loadChatHistory();
+  }, []);
 
   // Check in-memory cache only
   const checkCache = (query: string): CachedResponse | null => {
@@ -163,7 +171,6 @@ export default function Home() {
       const cachedResponse = checkCache(currentInput);
 
       if (cachedResponse) {
-        // Return cached response immediately
         console.log("✅ Using CACHED response");
         const aiMessage: Message = {
           id: (Date.now() + 1).toString(),
@@ -174,7 +181,6 @@ export default function Home() {
           sources: cachedResponse.sources,
         };
         setMessages((prev) => [...prev, aiMessage]);
-        setIsLoading(false);
         return;
       }
 
@@ -190,9 +196,7 @@ export default function Home() {
         }),
       });
 
-      if (!apiResponse.ok) {
-        throw new Error("API request failed");
-      }
+      if (!apiResponse.ok) throw new Error("API request failed");
 
       const responseData = await apiResponse.json();
       console.log("✅ LLM response received");
@@ -203,7 +207,6 @@ export default function Home() {
       const agentType = responseData.agent || "common";
       const sources = responseData.sources || [];
 
-      // Display AI message
       const aiMessage: Message = {
         id: (Date.now() + 1).toString(),
         type: "ai",
@@ -215,7 +218,6 @@ export default function Home() {
 
       setMessages((prev) => [...prev, aiMessage]);
 
-      // Update cache
       updateCache(currentInput, {
         answer: answerText,
         agent: agentType,
@@ -223,7 +225,6 @@ export default function Home() {
         timestamp: Date.now(),
       });
 
-      // Reload history
       await loadChatHistory();
     } catch (error: any) {
       console.error("❌ Error:", error);
@@ -236,11 +237,13 @@ export default function Home() {
       setMessages((prev) => [...prev, errorMessage]);
     } finally {
       setIsLoading(false);
+      inputRef.current?.focus(); // ✅ Re-focus after sending
     }
   };
 
   const handleQueryClick = (query: string) => {
     setInput(query);
+    inputRef.current?.focus(); // ✅ Focus again when a query is clicked
   };
 
   const copyToClipboard = (text: string) => {
@@ -369,7 +372,10 @@ export default function Home() {
                     {COMMON_QUESTIONS.map((question, idx) => (
                       <button
                         key={idx}
-                        onClick={() => setInput(question)}
+                        onClick={() => {
+                          setInput(question);
+                          inputRef.current?.focus(); // ✅ focus when selecting
+                        }}
                         className="text-left p-3 rounded-lg border border-border hover:bg-muted transition-colors text-sm"
                       >
                         {question}
@@ -495,6 +501,7 @@ export default function Home() {
             <div className="max-w-3xl mx-auto">
               <div className="flex gap-3">
                 <Input
+                  ref={inputRef} // ✅ attach ref
                   placeholder="Ask anything from your SOPs..."
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
