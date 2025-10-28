@@ -5,7 +5,7 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 import { MongoClient } from "mongodb";
 
 export const runtime = "nodejs";
-export const maxDuration = 60; // Set max duration for Vercel
+export const maxDuration = 60;
 
 // MongoDB Connection Setup
 let mongoClient: MongoClient | null = null;
@@ -51,7 +51,6 @@ async function extractTextFromPDF(buffer: Buffer): Promise<string> {
               try {
                 return decodeURIComponent(r.T || "");
               } catch (e) {
-                // If decoding fails, return the raw text
                 return r.T || "";
               }
             }).join("")
@@ -89,7 +88,7 @@ async function chunkText(
 
 export async function POST(request: Request) {
   try {
-    console.log("=== Upload Request Started ===");
+    console.log("=== 📁 Upload Request Started ===");
 
     const formData = await request.formData();
     const file = formData.get("file") as File;
@@ -100,72 +99,72 @@ export async function POST(request: Request) {
     let tags: string[] = [];
     try {
       tags = tagsString ? JSON.parse(tagsString) : [];
-    } catch (e) {
+    } catch {
       tags = [];
     }
 
     if (!file)
       return NextResponse.json({ error: "No file uploaded" }, { status: 400 });
 
+    // Read file into buffer
     const arrayBuffer = await file.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
 
-    // Extract Text directly from buffer
-    let textContent = "";
-    if (file.name.endsWith(".pdf")) {
-      textContent = await extractTextFromPDF(buffer);
-    } else if (file.name.endsWith(".docx")) {
-      const result = await mammoth.extractRawText({ buffer });
-      textContent = result.value;
-    } else if (file.name.endsWith(".txt")) {
-      textContent = buffer.toString("utf8");
-    } else {
-      return NextResponse.json(
-        { error: "Unsupported file type" },
-        { status: 400 }
-      );
-    }
-
-    if (!textContent.trim()) {
-      return NextResponse.json({ error: "No text extracted" }, { status: 400 });
-    }
-
+    // Create document metadata
     const db = await getDB();
     const documents = db.collection("documents");
-
-    const chunks = await chunkText(textContent);
     const documentId = Date.now().toString();
     const uploadDate = new Date();
 
-    console.log(`Embedding ${chunks.length} chunks...`);
-    const embeddingsData = [];
+    const fileData = {
+      documentId,
+      fileName: file.name,
+      fileType: file.name.split(".").pop()?.toUpperCase() || "Unknown",
+      version,
+      category,
+      tags,
+      status: "Active",
+      uploaded: uploadDate,
+      fileSize: buffer.length,
+    };
 
-    for (let i = 0; i < chunks.length; i++) {
-      const chunk = chunks[i];
-      const embedding = await generateEmbeddings(chunk);
-      embeddingsData.push({
-        documentId,
-        fileName: file.name,
-        fileType: file.name.split(".").pop()?.toUpperCase() || "Unknown",
-        version,
-        category,
-        tags,
-        status: "Active",
-        chunkIndex: i,
-        totalChunks: chunks.length,
-        text: chunk,
-        embedding,
-        uploaded: uploadDate,
-      });
-    }
+    // Store metadata in MongoDB
+    await documents.insertOne(fileData);
+    console.log(`✓ Metadata for "${file.name}" stored successfully`);
 
-    await documents.insertMany(embeddingsData);
+    // 🔹 Prepare binary data for webhook
+    console.log(`📤 Sending binary file to n8n webhook for "${file.name}"...`);
+    const blob = new Blob([buffer], { type: file.type || "application/pdf" });
+    const webhookForm = new FormData();
 
-    console.log(`✓ Document "${file.name}" stored successfully`);
+    webhookForm.append("file", blob, file.name);
+    webhookForm.append("documentId", documentId);
+    webhookForm.append("fileName", file.name);
+    webhookForm.append("version", version);
+    webhookForm.append("category", category);
+    webhookForm.append("tags", JSON.stringify(tags));
+    webhookForm.append("uploaded", uploadDate.toISOString());
+    webhookForm.append("status", "Active");
+    webhookForm.append(
+      "fileType",
+      file.name.split(".").pop()?.toUpperCase() || "Unknown"
+    );
+
+    // Send to n8n webhook
+    const webhookResponse = await fetch(
+      "https://jeni09.app.n8n.cloud/webhook/84bbc622-af1d-4e5e-8332-40d7433402df",
+      {
+        method: "POST",
+        body: webhookForm,
+      }
+    );
+
+    console.log(`✅ Webhook request sent for "${file.name}"`);
+    console.log("📨 Webhook response status:", webhookResponse.status);
+
     return NextResponse.json({
       success: true,
       documentId,
-      chunks: chunks.length,
       fileName: file.name,
       version,
       category,
@@ -174,7 +173,7 @@ export async function POST(request: Request) {
       uploaded: uploadDate.toISOString(),
     });
   } catch (error: any) {
-    console.error("Upload failed:", error);
+    console.error("❌ Upload failed:", error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
@@ -238,7 +237,6 @@ export async function DELETE(request: Request) {
     const db = await getDB();
     const documents = db.collection("documents");
 
-    // Update status to "Archived" instead of deleting
     const result = await documents.updateMany(
       { documentId },
       { $set: { status: "Archived" } }
