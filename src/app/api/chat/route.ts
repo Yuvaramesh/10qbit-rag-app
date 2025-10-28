@@ -248,7 +248,7 @@ Agent:`;
       async () => {
         try {
           const model = genAI.getGenerativeModel({
-            model: "gemini-2.0-flash-exp",
+            model: "gemini-2.5-flash",
           });
           const response = await model.generateContent(prompt);
           const agentType = response.response
@@ -268,7 +268,7 @@ Agent:`;
           if (error.status === 503) {
             console.log("⚠️ Primary model overloaded, trying fallback...");
             const fallbackModel = genAI.getGenerativeModel({
-              model: "gemini-1.5-flash",
+              model: "gemini-2.5-flash",
             });
             const response = await fallbackModel.generateContent(prompt);
             const agentType = response.response
@@ -401,7 +401,7 @@ Provide a complete and helpful answer:`;
       async () => {
         try {
           const model = genAI.getGenerativeModel({
-            model: "gemini-2.0-flash-exp",
+            model: "gemini-2.5flash",
           });
           const response = await model.generateContent(prompt);
           return response.response.text().trim();
@@ -410,7 +410,7 @@ Provide a complete and helpful answer:`;
           if (error.status === 503) {
             console.log("⚠️ Primary model overloaded, using fallback model...");
             const fallbackModel = genAI.getGenerativeModel({
-              model: "gemini-1.5-flash",
+              model: "gemini-2.5-flash",
             });
             const response = await fallbackModel.generateContent(prompt);
             return response.response.text().trim();
@@ -569,7 +569,7 @@ Your answer:`;
           async () => {
             try {
               const model = genAI.getGenerativeModel({
-                model: "gemini-2.0-flash-exp",
+                model: "gemini-2.5-flash",
               });
               const response = await model.generateContent(prompt);
               return response.response.text().trim();
@@ -577,7 +577,7 @@ Your answer:`;
               if (error.status === 503) {
                 console.log("⚠️ Using fallback model for general knowledge...");
                 const fallbackModel = genAI.getGenerativeModel({
-                  model: "gemini-1.5-flash",
+                  model: "gemini-2.5-flash",
                 });
                 const response = await fallbackModel.generateContent(prompt);
                 return response.response.text().trim();
@@ -627,7 +627,7 @@ Your answer:`;
           async () => {
             try {
               const model = genAI.getGenerativeModel({
-                model: "gemini-2.0-flash-exp",
+                model: "gemini-2.5-flash",
               });
               const response = await model.generateContent(prompt);
               return response.response.text().trim();
@@ -635,7 +635,7 @@ Your answer:`;
               if (error.status === 503) {
                 console.log("⚠️ Using fallback model for general knowledge...");
                 const fallbackModel = genAI.getGenerativeModel({
-                  model: "gemini-1.5-flash",
+                  model: "gemini-2.5-flash",
                 });
                 const response = await fallbackModel.generateContent(prompt);
                 return response.response.text().trim();
