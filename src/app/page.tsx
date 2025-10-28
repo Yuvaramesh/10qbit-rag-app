@@ -37,6 +37,10 @@ interface CachedResponse {
 
 const COMMON_QUESTIONS = ["What Vertex Eval Service?", "How does Rag Works?"];
 
+// Key for session storage
+const SESSION_MESSAGES_KEY = "chat_messages_session";
+const SESSION_CACHE_KEY = "chat_cache_session";
+
 export default function Home() {
   const [messages, setMessages] = useState<Message[]>([
     {
@@ -52,21 +56,61 @@ export default function Home() {
   const [chatHistory, setChatHistory] = useState<any[]>([]);
   const [showCommonQuestions, setShowCommonQuestions] = useState(true);
   const [sidebarOpen, setSidebarOpen] = useState(true);
-
-  // In-memory cache for this session
   const [responseCache, setResponseCache] = useState<
     Map<string, CachedResponse>
   >(new Map());
+  const [isInitialized, setIsInitialized] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
-
-  // ✅ New: Ref for input box
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // ✅ Focus input when component loads
+  // ✅ Load messages from sessionStorage on mount
   useEffect(() => {
+    const savedMessages = sessionStorage.getItem(SESSION_MESSAGES_KEY);
+    const savedCache = sessionStorage.getItem(SESSION_CACHE_KEY);
+
+    if (savedMessages) {
+      try {
+        const parsed = JSON.parse(savedMessages);
+        console.log("📂 Restored", parsed.length, "messages from session");
+        setMessages(parsed);
+        setShowCommonQuestions(parsed.length <= 1);
+      } catch (error) {
+        console.error("❌ Failed to parse saved messages:", error);
+      }
+    }
+
+    if (savedCache) {
+      try {
+        const parsed = JSON.parse(savedCache);
+        const cacheMap = new Map(Object.entries(parsed));
+        console.log("📂 Restored", cacheMap.size, "cache entries from session");
+        setResponseCache(cacheMap);
+      } catch (error) {
+        console.error("❌ Failed to parse saved cache:", error);
+      }
+    }
+
+    setIsInitialized(true);
     inputRef.current?.focus();
   }, []);
+
+  // ✅ Save messages to sessionStorage whenever they change
+  useEffect(() => {
+    if (isInitialized && messages.length > 0) {
+      sessionStorage.setItem(SESSION_MESSAGES_KEY, JSON.stringify(messages));
+      console.log("💾 Saved", messages.length, "messages to session");
+    }
+  }, [messages, isInitialized]);
+
+  // ✅ Save cache to sessionStorage whenever it changes
+  useEffect(() => {
+    if (isInitialized && responseCache.size > 0) {
+      const cacheObj = Object.fromEntries(responseCache);
+      sessionStorage.setItem(SESSION_CACHE_KEY, JSON.stringify(cacheObj));
+      console.log("💾 Saved", responseCache.size, "cache entries to session");
+    }
+  }, [responseCache, isInitialized]);
 
   useEffect(() => {
     scrollToBottom();
@@ -114,7 +158,6 @@ export default function Home() {
     loadChatHistory();
   }, []);
 
-  // Check in-memory cache only
   const checkCache = (query: string): CachedResponse | null => {
     const normalizedQuery = query.toLowerCase().trim();
     const cached = responseCache.get(normalizedQuery);
@@ -122,7 +165,7 @@ export default function Home() {
     if (cached) {
       const now = Date.now();
       const cacheAge = now - cached.timestamp;
-      const maxAge = 24 * 60 * 60 * 1000; // 24 hours
+      const maxAge = 24 * 60 * 60 * 1000;
 
       if (cacheAge < maxAge) {
         console.log("⚡ Cache HIT for query:", query);
@@ -167,7 +210,6 @@ export default function Home() {
       console.log("\n🔍 ===== QUERY PROCESSING =====");
       console.log("Query:", currentInput);
 
-      // Step 1: Check in-memory cache
       const cachedResponse = checkCache(currentInput);
 
       if (cachedResponse) {
@@ -184,7 +226,6 @@ export default function Home() {
         return;
       }
 
-      // Step 2: No cache - call Multi-Agent LLM
       console.log("🤖 Cache miss - calling Multi-Agent LLM...");
 
       const apiResponse = await fetch("/api/chat", {
@@ -237,13 +278,13 @@ export default function Home() {
       setMessages((prev) => [...prev, errorMessage]);
     } finally {
       setIsLoading(false);
-      inputRef.current?.focus(); // ✅ Re-focus after sending
+      inputRef.current?.focus();
     }
   };
 
   const handleQueryClick = (query: string) => {
     setInput(query);
-    inputRef.current?.focus(); // ✅ Focus again when a query is clicked
+    inputRef.current?.focus();
   };
 
   const copyToClipboard = (text: string) => {
@@ -290,12 +331,29 @@ export default function Home() {
     );
   };
 
+  // ✅ Add clear chat function
+  const handleClearChat = () => {
+    if (confirm("Clear current chat? This will start a new conversation.")) {
+      sessionStorage.removeItem(SESSION_MESSAGES_KEY);
+      setMessages([
+        {
+          id: "1",
+          type: "ai",
+          content:
+            "Hello! I'm your AI SOP Assistant. Ask me anything about your organization's standard operating procedures, and I'll provide accurate answers based on your documentation.",
+          timestamp: "Just now",
+        },
+      ]);
+      setShowCommonQuestions(true);
+      console.log("🗑️ Chat cleared");
+    }
+  };
+
   return (
     <div className="min-h-screen bg-background">
       <TopNav />
 
       <div className="flex h-[calc(100vh-73px)]">
-        {/* Sidebar */}
         {sidebarOpen && (
           <div className="w-72 border-r border-border bg-background p-4">
             <div className="mb-6">
@@ -310,7 +368,18 @@ export default function Home() {
                   <Menu className="w-4 h-4" />
                 </button>
               </div>
-              <ScrollArea className="h-[calc(100vh-200px)]">
+
+              {/* ✅ Add Clear Chat Button */}
+              <Button
+                onClick={handleClearChat}
+                variant="outline"
+                size="sm"
+                className="w-full mb-4"
+              >
+                Clear Current Chat
+              </Button>
+
+              <ScrollArea className="h-[calc(100vh-250px)]">
                 <div className="space-y-2">
                   {chatHistory.length === 0 ? (
                     <p className="text-xs text-muted-foreground text-center py-4">
@@ -348,7 +417,6 @@ export default function Home() {
           </div>
         )}
 
-        {/* Main Chat Area */}
         <div className="flex-1 flex flex-col">
           {!sidebarOpen && (
             <div className="border-b border-border bg-background p-4">
@@ -374,7 +442,7 @@ export default function Home() {
                         key={idx}
                         onClick={() => {
                           setInput(question);
-                          inputRef.current?.focus(); // ✅ focus when selecting
+                          inputRef.current?.focus();
                         }}
                         className="text-left p-3 rounded-lg border border-border hover:bg-muted transition-colors text-sm"
                       >
@@ -496,12 +564,11 @@ export default function Home() {
             </div>
           </ScrollArea>
 
-          {/* Input Area */}
           <div className="border-t border-border bg-background p-6">
             <div className="max-w-3xl mx-auto">
               <div className="flex gap-3">
                 <Input
-                  ref={inputRef} // ✅ attach ref
+                  ref={inputRef}
                   placeholder="Ask anything from your SOPs..."
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
