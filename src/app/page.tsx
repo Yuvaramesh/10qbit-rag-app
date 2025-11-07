@@ -7,17 +7,8 @@ import { Card } from "../components/ui/card";
 import { Input } from "../components/ui/input";
 import { ScrollArea } from "../components/ui/scroll-area";
 import { Badge } from "../components/ui/badge";
-import {
-  Clock,
-  ThumbsUp,
-  ThumbsDown,
-  Copy,
-  Bookmark,
-  Send,
-  Loader2,
-  FileText,
-  Menu,
-} from "lucide-react";
+import { Clock, Send, Loader2, FileText, Menu } from "lucide-react";
+import { MessageActions } from "../components/message-actions";
 
 interface Message {
   id: string;
@@ -25,23 +16,22 @@ interface Message {
   content: string;
   timestamp: string;
   agent?: string;
-  sources?: string[];
+  sources?: Array<{ name: string; page?: number }>;
 }
 
 interface CachedResponse {
   answer: string;
   agent: string;
-  sources: string[];
+  sources: Array<{ name: string; page?: number }>;
   timestamp: number;
 }
 
 const COMMON_QUESTIONS = ["What Vertex Eval Service?", "How does Rag Works?"];
 
-// Key for session storage
 const SESSION_MESSAGES_KEY = "chat_messages_session";
 const SESSION_CACHE_KEY = "chat_cache_session";
 
-export default function Home() {
+const Page = () => {
   const [messages, setMessages] = useState<Message[]>([
     {
       id: "1",
@@ -64,7 +54,6 @@ export default function Home() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // ✅ Load messages from sessionStorage on mount
   useEffect(() => {
     const savedMessages = sessionStorage.getItem(SESSION_MESSAGES_KEY);
     const savedCache = sessionStorage.getItem(SESSION_CACHE_KEY);
@@ -72,22 +61,28 @@ export default function Home() {
     if (savedMessages) {
       try {
         const parsed = JSON.parse(savedMessages);
-        console.log("📂 Restored", parsed.length, "messages from session");
+        console.log("[v0] Restored", parsed.length, "messages from session");
         setMessages(parsed);
         setShowCommonQuestions(parsed.length <= 1);
       } catch (error) {
-        console.error("❌ Failed to parse saved messages:", error);
+        console.error("[v0] Failed to parse saved messages:", error);
       }
     }
 
     if (savedCache) {
       try {
         const parsed = JSON.parse(savedCache);
-        const cacheMap = new Map(Object.entries(parsed));
-        console.log("📂 Restored", cacheMap.size, "cache entries from session");
+        const cacheMap = new Map<string, CachedResponse>(
+          Object.entries(parsed) as [string, CachedResponse][]
+        );
+        console.log(
+          "[v0] Restored",
+          cacheMap.size,
+          "cache entries from session"
+        );
         setResponseCache(cacheMap);
       } catch (error) {
-        console.error("❌ Failed to parse saved cache:", error);
+        console.error("[v0] Failed to parse saved cache:", error);
       }
     }
 
@@ -95,20 +90,18 @@ export default function Home() {
     inputRef.current?.focus();
   }, []);
 
-  // ✅ Save messages to sessionStorage whenever they change
   useEffect(() => {
     if (isInitialized && messages.length > 0) {
       sessionStorage.setItem(SESSION_MESSAGES_KEY, JSON.stringify(messages));
-      console.log("💾 Saved", messages.length, "messages to session");
+      console.log("[v0] Saved", messages.length, "messages to session");
     }
   }, [messages, isInitialized]);
 
-  // ✅ Save cache to sessionStorage whenever it changes
   useEffect(() => {
     if (isInitialized && responseCache.size > 0) {
       const cacheObj = Object.fromEntries(responseCache);
       sessionStorage.setItem(SESSION_CACHE_KEY, JSON.stringify(cacheObj));
-      console.log("💾 Saved", responseCache.size, "cache entries to session");
+      console.log("[v0] Saved", responseCache.size, "cache entries to session");
     }
   }, [responseCache, isInitialized]);
 
@@ -122,35 +115,47 @@ export default function Home() {
 
   const loadChatHistory = async () => {
     try {
-      console.log("📚 Loading chat history from MongoDB...");
+      console.log("[v0] Loading chat history from MongoDB...");
       const response = await fetch("/api/chat?userEmail=anonymous");
       if (!response.ok) {
-        console.log("❌ Failed to fetch chat history");
+        console.log("[v0] Failed to fetch chat history");
         return;
       }
 
       const data = await response.json();
 
       if (data.history && data.history.length > 0) {
-        console.log(`📊 Loaded ${data.history.length} chat history items`);
+        console.log(`[v0] Loaded ${data.history.length} chat history items`);
         setChatHistory(data.history.slice(0, 10));
 
-        // Pre-populate in-memory cache
         const cache = new Map<string, CachedResponse>();
         data.history.forEach((item: any) => {
           const normalizedQuery = item.question.toLowerCase().trim();
+          const formattedSources = (item.sources || []).map((source: any) => {
+            if (typeof source === "string") {
+              const pageMatch = source.match(/[Pp]age\s*(\d+)/i);
+              const docName = source
+                .replace(/\s*[,;]?\s*[Pp]age\s*\d+/i, "")
+                .trim();
+              return {
+                name: docName || source,
+                page: pageMatch ? Number.parseInt(pageMatch[1]) : undefined,
+              };
+            }
+            return source;
+          });
           cache.set(normalizedQuery, {
             answer: item.answer,
             agent: item.agent || "common",
-            sources: item.sources || [],
+            sources: formattedSources,
             timestamp: new Date(item.timestamp).getTime(),
           });
         });
         setResponseCache(cache);
-        console.log(`💾 Cache populated with ${cache.size} entries`);
+        console.log(`[v0] Cache populated with ${cache.size} entries`);
       }
     } catch (error) {
-      console.error("❌ Error loading chat history:", error);
+      console.error("[v0] Error loading chat history:", error);
     }
   };
 
@@ -168,17 +173,17 @@ export default function Home() {
       const maxAge = 24 * 60 * 60 * 1000;
 
       if (cacheAge < maxAge) {
-        console.log("⚡ Cache HIT for query:", query);
+        console.log("[v0] Cache HIT for query:", query);
         return cached;
       } else {
-        console.log("🕐 Cache expired for query:", query);
+        console.log("[v0] Cache expired for query:", query);
         const newCache = new Map(responseCache);
         newCache.delete(normalizedQuery);
         setResponseCache(newCache);
       }
     }
 
-    console.log("❌ Cache MISS for query:", query);
+    console.log("[v0] Cache MISS for query:", query);
     return null;
   };
 
@@ -187,7 +192,7 @@ export default function Home() {
     const newCache = new Map(responseCache);
     newCache.set(normalizedQuery, response);
     setResponseCache(newCache);
-    console.log("💾 Cache updated for query:", query);
+    console.log("[v0] Cache updated for query:", query);
   };
 
   const handleSendMessage = async () => {
@@ -207,13 +212,13 @@ export default function Home() {
     setShowCommonQuestions(false);
 
     try {
-      console.log("\n🔍 ===== QUERY PROCESSING =====");
-      console.log("Query:", currentInput);
+      console.log("\n[v0] ===== QUERY PROCESSING =====");
+      console.log("[v0] Query:", currentInput);
 
       const cachedResponse = checkCache(currentInput);
 
       if (cachedResponse) {
-        console.log("✅ Using CACHED response");
+        console.log("[v0] Using CACHED response");
         const aiMessage: Message = {
           id: (Date.now() + 1).toString(),
           type: "ai",
@@ -226,7 +231,7 @@ export default function Home() {
         return;
       }
 
-      console.log("🤖 Cache miss - calling Multi-Agent LLM...");
+      console.log("[v0] Cache miss - calling Multi-Agent LLM...");
 
       const apiResponse = await fetch("/api/chat", {
         method: "POST",
@@ -240,13 +245,26 @@ export default function Home() {
       if (!apiResponse.ok) throw new Error("API request failed");
 
       const responseData = await apiResponse.json();
-      console.log("✅ LLM response received");
+      console.log("[v0] LLM response received");
 
       const answerText =
         responseData.answer ||
         "I couldn't generate a proper response. Please try again.";
       const agentType = responseData.agent || "common";
-      const sources = responseData.sources || [];
+
+      const sources = (responseData.sources || []).map((source: any) => {
+        if (typeof source === "string") {
+          const pageMatch = source.match(/[Pp]age\s*(\d+)/i);
+          const docName = source
+            .replace(/\s*[,;]?\s*[Pp]age\s*\d+/i, "")
+            .trim();
+          return {
+            name: docName || source,
+            page: pageMatch ? Number.parseInt(pageMatch[1]) : undefined,
+          };
+        }
+        return source;
+      });
 
       const aiMessage: Message = {
         id: (Date.now() + 1).toString(),
@@ -268,7 +286,7 @@ export default function Home() {
 
       await loadChatHistory();
     } catch (error: any) {
-      console.error("❌ Error:", error);
+      console.error("[v0] Error:", error);
       const errorMessage: Message = {
         id: (Date.now() + 1).toString(),
         type: "ai",
@@ -287,8 +305,11 @@ export default function Home() {
     inputRef.current?.focus();
   };
 
-  const copyToClipboard = (text: string) => {
-    navigator.clipboard.writeText(text);
+  const handleFeedback = (
+    messageId: string,
+    type: "helpful" | "not-helpful"
+  ) => {
+    console.log(`[v0] Feedback: ${type} for message ${messageId}`);
   };
 
   const getAgentBadge = (agent?: string) => {
@@ -331,7 +352,6 @@ export default function Home() {
     );
   };
 
-  // ✅ Add clear chat function
   const handleClearChat = () => {
     if (confirm("Clear current chat? This will start a new conversation.")) {
       sessionStorage.removeItem(SESSION_MESSAGES_KEY);
@@ -345,7 +365,7 @@ export default function Home() {
         },
       ]);
       setShowCommonQuestions(true);
-      console.log("🗑️ Chat cleared");
+      console.log("[v0] Chat cleared");
     }
   };
 
@@ -369,12 +389,11 @@ export default function Home() {
                 </button>
               </div>
 
-              {/* ✅ Add Clear Chat Button */}
               <Button
                 onClick={handleClearChat}
                 variant="outline"
                 size="sm"
-                className="w-full mb-4"
+                className="w-full mb-4 bg-transparent"
               >
                 Clear Current Chat
               </Button>
@@ -474,7 +493,7 @@ export default function Home() {
                         {message.sources && message.sources.length > 0 && (
                           <div className="mt-3">
                             <p className="text-xs font-medium mb-2">Sources:</p>
-                            <div className="flex flex-wrap gap-1">
+                            <div className="flex flex-wrap gap-2">
                               {message.sources.map((source, idx) => (
                                 <Badge
                                   key={idx}
@@ -482,48 +501,25 @@ export default function Home() {
                                   className="text-xs"
                                 >
                                   <FileText className="w-3 h-3 mr-1" />
-                                  {source}
+                                  {typeof source === "string"
+                                    ? source
+                                    : `${source.name}${
+                                        source.page
+                                          ? `, Page ${source.page}`
+                                          : ""
+                                      }`}
                                 </Badge>
                               ))}
                             </div>
                           </div>
                         )}
 
-                        <div className="flex items-center gap-2 mt-3">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-8 px-2 text-xs"
-                          >
-                            <ThumbsUp className="w-4 h-4 mr-1" />
-                            Helpful
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-8 px-2 text-xs"
-                          >
-                            <ThumbsDown className="w-4 h-4 mr-1" />
-                            Not Helpful
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-8 px-2 text-xs"
-                            onClick={() => copyToClipboard(message.content)}
-                          >
-                            <Copy className="w-4 h-4 mr-1" />
-                            Copy
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-8 px-2 text-xs"
-                          >
-                            <Bookmark className="w-4 h-4 mr-1" />
-                            Save
-                          </Button>
-                        </div>
+                        <MessageActions
+                          content={message.content}
+                          messageId={message.id}
+                          onFeedback={handleFeedback}
+                        />
+
                         <p className="text-xs text-muted-foreground mt-2">
                           {message.timestamp}
                         </p>
@@ -598,4 +594,6 @@ export default function Home() {
       </div>
     </div>
   );
-}
+};
+
+export default Page;

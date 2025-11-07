@@ -153,6 +153,33 @@ async function saveChatHistory(
   }
 }
 
+function cleanAnswerText(text: string): string {
+  return (
+    text
+      // Remove markdown bold, italics, and code formatting
+      .replace(/\*\*(.+?)\*\*/g, "$1")
+      .replace(/\*(.+?)\*/g, "$1")
+      .replace(/`(.+?)`/g, "$1")
+      // Remove markdown headings and preserve spacing
+      .replace(/^#+\s+/gm, "")
+      // Remove blockquote markers
+      .replace(/^>\s*/gm, "")
+      // Remove code block markers
+      .replace(/```[\w]*\n?/g, "")
+      // Clean up bullet points and lists - convert to plain text
+      .replace(/^[*\-+]\s+/gm, "• ")
+      .replace(/^\d+\.\s+/gm, (match, offset, string) => {
+        const lineNum = string.substring(0, offset).split("\n").length;
+        return `${lineNum}. `;
+      })
+      // Normalize line breaks
+      .replace(/\n{3,}/g, "\n\n")
+      // Clean up extra spaces
+      .replace(/[ \t]{2,}/g, " ")
+      .trim()
+  );
+}
+
 // POST - Handle chat query
 export async function POST(request: Request) {
   try {
@@ -178,17 +205,15 @@ export async function POST(request: Request) {
       userEmail
     );
 
-    // Extract data from n8n response
     const {
       answer,
-      output, // fallback if answer is not provided
+      output,
       agent = "common",
       sources = [],
       similarity = "N/A",
       multiQuestion = false,
     } = n8nResponse;
 
-    // Use answer if available, otherwise use output
     const finalAnswer = answer || output;
 
     if (!finalAnswer) {
@@ -199,11 +224,7 @@ export async function POST(request: Request) {
     console.log("  Answer:", finalAnswer.substring(0, 100) + "...");
     console.log("  Agent:", agent);
     console.log("  Sources:", sources);
-    console.log("  Similarity:", similarity);
-    console.log("  Multi-question:", multiQuestion);
 
-    // Save to MongoDB
-    console.log("\n📍 Saving to MongoDB...");
     await saveChatHistory(
       query,
       finalAnswer,
@@ -217,8 +238,15 @@ export async function POST(request: Request) {
 
     console.log("✅ === CHAT REQUEST COMPLETED ===\n");
 
+    const cleanAnswer = cleanAnswerText(finalAnswer);
+
+    console.log(
+      "\n🧹 Cleaned and formatted answer:",
+      cleanAnswer.substring(0, 200) + "..."
+    );
+
     return NextResponse.json({
-      answer: finalAnswer,
+      answer: cleanAnswer,
       agent,
       sources,
       similarity,
@@ -255,18 +283,20 @@ export async function GET(request: Request) {
 
     console.log(`✅ Found ${chatHistory.length} chat messages`);
 
+    const cleanedHistory = chatHistory.map((chat: any) => ({
+      id: chat._id.toString(),
+      question: chat.question,
+      answer: cleanAnswerText(chat.answer),
+      agent: chat.agent,
+      sources: chat.sources || [],
+      similarity: chat.similarity,
+      multiQuestion: chat.multiQuestion,
+      timestamp: chat.timestamp,
+    }));
+
     return NextResponse.json({
       success: true,
-      history: chatHistory.map((chat: any) => ({
-        id: chat._id.toString(),
-        question: chat.question,
-        answer: chat.answer,
-        agent: chat.agent,
-        sources: chat.sources || [],
-        similarity: chat.similarity,
-        multiQuestion: chat.multiQuestion,
-        timestamp: chat.timestamp,
-      })),
+      history: cleanedHistory,
     });
   } catch (error: any) {
     console.error("❌ Failed to fetch chat history:", error);

@@ -1,11 +1,14 @@
 "use client";
 
+import type React from "react";
+
 import { useState, useEffect, useRef } from "react";
 import { TopNav } from "../../components/layout/top-nav";
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
 import { Card } from "../../components/ui/card";
 import { Badge } from "../../components/ui/badge";
+import { MessageActions } from "../../components/message-actions";
 import { Send, Loader2, Bot, User, FileText, Sparkles } from "lucide-react";
 import {
   Select,
@@ -36,6 +39,39 @@ export default function AssistantPage() {
   const [documents, setDocuments] = useState<Document[]>([]);
   const [selectedFile, setSelectedFile] = useState<string>("all");
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  const generateCacheKey = (query: string, selectedFile: string) => {
+    return `chat_${selectedFile}_${query
+      .toLowerCase()
+      .replace(/\s+/g, "_")}`.slice(0, 100);
+  };
+
+  const getCachedResponse = (
+    query: string,
+    selectedFile: string
+  ): Message | null => {
+    const cacheKey = generateCacheKey(query, selectedFile);
+    const cached = sessionStorage.getItem(cacheKey);
+    if (cached) {
+      console.log("[v0] Cache HIT for:", query);
+      const cachedData = JSON.parse(cached);
+      return {
+        id: (Date.now() + 1).toString(),
+        role: "assistant",
+        content: cachedData.answer,
+        agent: cachedData.agent,
+        sources: cachedData.sources,
+        timestamp: new Date(),
+      };
+    }
+    return null;
+  };
+
+  const cacheResponse = (query: string, selectedFile: string, data: any) => {
+    const cacheKey = generateCacheKey(query, selectedFile);
+    sessionStorage.setItem(cacheKey, JSON.stringify(data));
+    console.log("[v0] Cached response for:", query);
+  };
 
   useEffect(() => {
     console.log("Assistant page mounted");
@@ -76,7 +112,11 @@ export default function AssistantPage() {
   const loadChatHistory = async () => {
     try {
       console.log("Loading chat history from /api/chat...");
-      const response = await fetch("/api/chat?userEmail=anonymous");
+      const response = await fetch("/api/chat?userEmail=anonymous", {
+        headers: {
+          "Cache-Control": "max-age=3600",
+        },
+      });
       console.log("Chat history response status:", response.status);
 
       if (!response.ok) {
@@ -90,7 +130,7 @@ export default function AssistantPage() {
       if (data.history && data.history.length > 0) {
         console.log("Loading", data.history.length, "chat messages");
         const formattedHistory = data.history
-          .map((chat: any) => [
+          .flatMap((chat: any) => [
             {
               id: `${chat.id}-q`,
               role: "user" as const,
@@ -106,7 +146,6 @@ export default function AssistantPage() {
               timestamp: new Date(chat.timestamp),
             },
           ])
-          .flat()
           .reverse();
 
         setMessages(formattedHistory);
@@ -114,6 +153,18 @@ export default function AssistantPage() {
       }
     } catch (error) {
       console.error("Error loading chat history:", error);
+    }
+  };
+
+  const handleMessageFeedback = async (
+    messageId: string,
+    type: "helpful" | "not-helpful"
+  ) => {
+    try {
+      console.log(`Message ${messageId} marked as ${type}`);
+      // TODO: Send feedback to backend for analytics
+    } catch (error) {
+      console.error("Error saving feedback:", error);
     }
   };
 
@@ -141,6 +192,14 @@ export default function AssistantPage() {
     setIsLoading(true);
 
     try {
+      const cachedResponse = getCachedResponse(currentInput, selectedFile);
+      if (cachedResponse) {
+        console.log("[v0] Using cached response");
+        setMessages((prev) => [...prev, cachedResponse]);
+        setIsLoading(false);
+        return;
+      }
+
       const requestBody = {
         query: currentInput,
         selectedFile: selectedFile === "all" ? undefined : selectedFile,
@@ -154,13 +213,13 @@ export default function AssistantPage() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          "Cache-Control": "no-cache",
         },
         body: JSON.stringify(requestBody),
       });
 
       console.log("Response received");
       console.log("Response status:", response.status);
-      console.log("Response ok:", response.ok);
 
       if (!response.ok) {
         const errorText = await response.text();
@@ -179,6 +238,8 @@ export default function AssistantPage() {
 
       const data = await response.json();
       console.log("Response data:", data);
+
+      cacheResponse(currentInput, selectedFile, data);
 
       const assistantMessage: Message = {
         id: (Date.now() + 1).toString(),
@@ -293,13 +354,13 @@ export default function AssistantPage() {
                   <p className="text-xs text-muted-foreground">Try asking:</p>
                   <div className="space-y-1">
                     <p className="text-xs bg-muted px-3 py-2 rounded">
-                      ⚙️ "What are the safety procedures?"
+                      ⚙️ What are the safety procedures?
                     </p>
                     <p className="text-xs bg-muted px-3 py-2 rounded">
-                      🤝 "How do I submit a support ticket?"
+                      🤝 How do I submit a support ticket?
                     </p>
                     <p className="text-xs bg-muted px-3 py-2 rounded">
-                      💬 "What is the company policy?"
+                      💬 What is the company policy?
                     </p>
                   </div>
                 </div>
@@ -309,60 +370,73 @@ export default function AssistantPage() {
                 {messages.map((message) => (
                   <div
                     key={message.id}
-                    className={`flex gap-3 ${
+                    className={`flex gap-3 w-full ${
                       message.role === "user" ? "justify-end" : "justify-start"
                     }`}
                   >
                     {message.role === "assistant" && (
-                      <div className="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center flex-shrink-0">
+                      <div className="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center flex-shrink-0 mt-1">
                         <Bot className="w-5 h-5 text-white" />
                       </div>
                     )}
 
                     <div
-                      className={`max-w-[70%] ${
-                        message.role === "user"
-                          ? "bg-blue-500 text-white"
-                          : "bg-muted"
-                      } rounded-lg p-4`}
+                      className={`flex flex-col gap-2 ${
+                        message.role === "user" ? "items-end" : "items-start"
+                      } flex-1 max-w-[80%]`}
                     >
-                      {message.role === "assistant" && message.agent && (
-                        <div className="mb-2">
-                          {getAgentBadge(message.agent)}
-                        </div>
-                      )}
-
-                      <p className="text-sm whitespace-pre-wrap">
-                        {message.content}
-                      </p>
-
-                      {message.sources && message.sources.length > 0 && (
-                        <div className="mt-3 pt-3 border-t border-border">
-                          <p className="text-xs font-medium mb-2">Sources:</p>
-                          <div className="flex flex-wrap gap-1">
-                            {message.sources.map((source, idx) => (
-                              <Badge
-                                key={idx}
-                                variant="secondary"
-                                className="text-xs"
-                              >
-                                <FileText className="w-3 h-3 mr-1" />
-                                {source}
-                              </Badge>
-                            ))}
+                      <div
+                        className={`w-full ${
+                          message.role === "user"
+                            ? "bg-blue-500 text-white"
+                            : "bg-muted"
+                        } rounded-lg p-4`}
+                      >
+                        {message.role === "assistant" && message.agent && (
+                          <div className="mb-2">
+                            {getAgentBadge(message.agent)}
                           </div>
-                        </div>
+                        )}
+
+                        <p className="text-sm whitespace-pre-wrap break-words">
+                          {message.content}
+                        </p>
+
+                        {message.sources && message.sources.length > 0 && (
+                          <div className="mt-3 pt-3 border-t border-border">
+                            <p className="text-xs font-medium mb-2">Sources:</p>
+                            <div className="flex flex-wrap gap-1">
+                              {message.sources.map((source, idx) => (
+                                <Badge
+                                  key={idx}
+                                  variant="secondary"
+                                  className="text-xs"
+                                >
+                                  <FileText className="w-3 h-3 mr-1" />
+                                  {source}
+                                </Badge>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      {message.role === "assistant" && (
+                        <MessageActions
+                          content={message.content}
+                          messageId={message.id}
+                          onFeedback={handleMessageFeedback}
+                        />
                       )}
                     </div>
 
                     {message.role === "user" && (
-                      <div className="w-8 h-8 rounded-full bg-gray-300 flex items-center justify-center flex-shrink-0">
+                      <div className="w-8 h-8 rounded-full bg-gray-300 flex items-center justify-center flex-shrink-0 mt-1">
                         <User className="w-5 h-5 text-gray-600" />
                       </div>
                     )}
                   </div>
                 ))}
-
                 {isLoading && (
                   <div className="flex gap-3">
                     <div className="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center flex-shrink-0">
