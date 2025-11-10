@@ -135,21 +135,8 @@ const Page = () => {
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    const loadInitialData = () => {
-      // Load messages from sessionStorage
-      const savedMessages = sessionStorage.getItem(SESSION_MESSAGES_KEY);
-      if (savedMessages) {
-        try {
-          const parsed = JSON.parse(savedMessages);
-          console.log("[v0] Restored", parsed.length, "messages from session");
-          setMessages(parsed);
-          setShowCommonQuestions(parsed.length <= 1);
-        } catch (error) {
-          console.error("[v0] Failed to parse saved messages:", error);
-        }
-      }
-
-      // Load shared cache from localStorage
+    const loadInitialData = async () => {
+      // Load shared cache from localStorage FIRST
       try {
         const cachedData = localStorage.getItem(SHARED_CACHE_KEY);
         if (cachedData) {
@@ -166,6 +153,19 @@ const Page = () => {
         }
       } catch (error) {
         console.error("[v0] Failed to load shared cache:", error);
+      }
+
+      // Load messages from sessionStorage
+      const savedMessages = sessionStorage.getItem(SESSION_MESSAGES_KEY);
+      if (savedMessages) {
+        try {
+          const parsed = JSON.parse(savedMessages);
+          console.log("[v0] Restored", parsed.length, "messages from session");
+          setMessages(parsed);
+          setShowCommonQuestions(parsed.length <= 1);
+        } catch (error) {
+          console.error("[v0] Failed to parse saved messages:", error);
+        }
       }
 
       // Load history from sessionStorage
@@ -522,11 +522,11 @@ const Page = () => {
 
           <ScrollArea className="flex-1 p-6">
             <div className="max-w-3xl mx-auto space-y-6">
-              {/* Top 3 Cached Questions - Always show when available */}
-              {cachedQuestions.length > 0 && (
-                <div className="space-y-3">
-                  <p className="text-sm font-medium text-gray-600">
-                    Top Cached Questions:
+              {/* Top 3 Cached Questions - Show after first user query */}
+              {messages.length > 1 && cachedQuestions.length > 0 && (
+                <div className="space-y-3 bg-blue-50 p-4 rounded-lg border border-blue-200">
+                  <p className="text-sm font-semibold text-blue-900">
+                    💾 Frequently Asked (Cached):
                   </p>
                   <div className="grid grid-cols-1 gap-2">
                     {cachedQuestions.map((question, idx) => (
@@ -536,16 +536,16 @@ const Page = () => {
                           setInput(question);
                           inputRef.current?.focus();
                         }}
-                        className="text-left p-3 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors text-sm"
+                        className="text-left p-3 rounded-lg bg-white border border-blue-300 hover:bg-blue-50 transition-colors text-sm font-medium text-gray-700"
                       >
-                        {question}
+                        ⚡ {question}
                       </button>
                     ))}
                   </div>
                 </div>
               )}
 
-              {/* Default Questions - Show only when no cache and initial message */}
+              {/* Default Questions - Show only initially when no cache */}
               {showCommonQuestions &&
                 messages.length === 1 &&
                 cachedQuestions.length === 0 && (
