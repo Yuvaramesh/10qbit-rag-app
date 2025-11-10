@@ -702,7 +702,7 @@ const Page = () => {
                 </Button>
               </div>
               <p className="text-xs text-gray-500 mt-2">
-                ⚡ Intelligent caching with multi-agent LLM
+                ⚡ Intelligent RAG Application
               </p>
             </div>
           </div>
