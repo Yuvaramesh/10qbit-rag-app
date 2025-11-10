@@ -373,22 +373,22 @@ export default function DocumentsPage() {
                             <DropdownMenuItem onClick={() => handleView(doc)}>
                               View
                             </DropdownMenuItem>
-                            <DropdownMenuItem
+                            {/* <DropdownMenuItem
                               onClick={() => handleEdit(doc._id)}
                             >
                               Edit
-                            </DropdownMenuItem>
+                            </DropdownMenuItem> */}
                             <DropdownMenuItem
                               onClick={() => handleDownload(doc)}
                             >
                               Download
                             </DropdownMenuItem>
-                            <DropdownMenuItem
+                            {/* <DropdownMenuItem
                               onClick={() => handleDelete(doc._id)}
                               className="text-destructive"
                             >
                               Archive
-                            </DropdownMenuItem>
+                            </DropdownMenuItem> */}
                           </DropdownMenuContent>
                         </DropdownMenu>
                       </td>
@@ -496,7 +496,7 @@ export default function DocumentsPage() {
             <Button
               onClick={handleSaveUpload}
               disabled={isUploading || !selectedFile}
-              className="bg-blue-500 hover:bg-blue-600"
+              className="bg-green-800 hover:bg-green-800"
             >
               {isUploading ? (
                 <>
