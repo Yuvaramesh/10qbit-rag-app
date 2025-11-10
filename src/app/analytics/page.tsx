@@ -108,7 +108,7 @@ export default function AnalyticsPage() {
         <TopNav />
         <div className="flex items-center justify-center h-[calc(100vh-73px)]">
           <div className="text-center">
-            <Loader2 className="w-12 h-12 animate-spin text-blue-500 mx-auto mb-4" />
+            <Loader2 className="w-12 h-12 animate-spin text-green-800 mx-auto mb-4" />
             <p className="text-muted-foreground">Loading analytics...</p>
           </div>
         </div>
@@ -325,7 +325,7 @@ export default function AnalyticsPage() {
                     className="flex items-center justify-between p-3 bg-muted rounded-lg hover:bg-muted/80 transition-colors"
                   >
                     <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-full bg-blue-500 text-white text-xs flex items-center justify-center font-bold flex-shrink-0">
+                      <div className="w-8 h-8 rounded-full bg-green-800 text-white text-xs flex items-center justify-center font-bold flex-shrink-0">
                         {idx + 1}
                       </div>
                       <span className="text-sm font-medium">{item.topic}</span>
