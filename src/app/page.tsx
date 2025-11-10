@@ -1,21 +1,18 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { TopNav } from "../components/layout/top-nav";
 import { Button } from "../components/ui/button";
 import { Card } from "../components/ui/card";
 import { Input } from "../components/ui/input";
 import { ScrollArea } from "../components/ui/scroll-area";
 import { Badge } from "../components/ui/badge";
-import { Clock, Send, Loader2, FileText, Menu } from "lucide-react";
-import { MessageActions } from "../components/message-actions";
+import { Clock, Send, Loader2, FileText, Menu, X } from "lucide-react";
 
 interface Message {
   id: string;
   type: "ai" | "user";
   content: string;
   timestamp: string;
-  agent?: string;
   sources?: Array<{ name: string; page?: number }>;
 }
 
@@ -26,10 +23,144 @@ interface CachedResponse {
   timestamp: number;
 }
 
-const COMMON_QUESTIONS = ["What Vertex Eval Service?", "How does Rag Works?"];
+interface ChatHistoryItem {
+  id: string;
+  question: string;
+  timestamp: string;
+}
 
 const SESSION_MESSAGES_KEY = "chat_messages_session";
-const SESSION_CACHE_KEY = "chat_cache_session";
+const SHARED_CACHE_KEY = "shared_cache";
+const SESSION_HISTORY_KEY = "chat_history_session";
+
+import Link from "next/link";
+
+const TopNav = () => {
+  return (
+    <div className="bg-white border-b border-gray-200">
+      <div className="flex items-center justify-between px-6 py-4">
+        <div className="flex items-center gap-8">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-full bg-blue-500 flex items-center justify-center">
+              <span className="text-white font-bold text-lg">A</span>
+            </div>
+            <h1 className="text-xl font-semibold text-gray-900">
+              AI SOP Assistant
+            </h1>
+          </div>
+
+          {/* ✅ Replace <a> with <Link> */}
+          <nav className="flex gap-6">
+            <Link
+              href="/"
+              className="text-blue-600 font-medium border-b-2 border-blue-600 pb-1"
+            >
+              AI SOP Assistant
+            </Link>
+
+            <Link
+              href="/documents"
+              className="text-gray-600 hover:text-gray-900 pb-1"
+            >
+              Documents
+            </Link>
+
+            <Link
+              href="/analytics"
+              className="text-gray-600 hover:text-gray-900 pb-1"
+            >
+              Analytics
+            </Link>
+          </nav>
+        </div>
+
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center">
+            <span className="text-white text-xs font-semibold">10QB</span>
+          </div>
+          <span className="text-sm font-medium text-gray-900">10QBit</span>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const MessageActions = ({ content, messageId, onFeedback }: any) => {
+  const [copied, setCopied] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [feedbackGiven, setFeedbackGiven] = useState<
+    "helpful" | "not-helpful" | null
+  >(null);
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(content);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleSave = () => {
+    setSaved(true);
+    setTimeout(() => setSaved(false), 2000);
+  };
+
+  const handleFeedback = (type: "helpful" | "not-helpful") => {
+    setFeedbackGiven(type);
+    onFeedback(messageId, type);
+  };
+
+  return (
+    <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-100">
+      <div className="flex gap-3">
+        <button
+          onClick={() => handleFeedback("helpful")}
+          className={`flex items-center gap-1.5 text-xs transition-colors ${
+            feedbackGiven === "helpful"
+              ? "text-green-600 font-medium"
+              : "text-gray-500 hover:text-gray-700"
+          }`}
+        >
+          <span className="text-base">👍</span>
+          <span>Helpful</span>
+        </button>
+        <button
+          onClick={() => handleFeedback("not-helpful")}
+          className={`flex items-center gap-1.5 text-xs transition-colors ${
+            feedbackGiven === "not-helpful"
+              ? "text-red-600 font-medium"
+              : "text-gray-500 hover:text-gray-700"
+          }`}
+        >
+          <span className="text-base">👎</span>
+          <span>Not Helpful</span>
+        </button>
+      </div>
+      <div className="flex gap-2">
+        <button
+          onClick={handleCopy}
+          className={`flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-md transition-colors ${
+            copied
+              ? "bg-blue-100 text-blue-700 font-medium"
+              : "text-gray-600 hover:bg-gray-100"
+          }`}
+        >
+          <span className="text-sm">📋</span>
+          <span>{copied ? "Copied" : "Copy"}</span>
+        </button>
+        <button
+          onClick={handleSave}
+          className={`flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-md transition-colors ${
+            saved
+              ? "bg-orange-100 text-orange-700 font-medium"
+              : "text-gray-600 hover:bg-gray-100"
+          }`}
+        >
+          <span className="text-sm">🔖</span>
+          <span>{saved ? "Saved" : "Save"}</span>
+        </button>
+      </div>
+    </div>
+  );
+};
 
 const Page = () => {
   const [messages, setMessages] = useState<Message[]>([
@@ -43,51 +174,72 @@ const Page = () => {
   ]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [chatHistory, setChatHistory] = useState<any[]>([]);
   const [showCommonQuestions, setShowCommonQuestions] = useState(true);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [responseCache, setResponseCache] = useState<
     Map<string, CachedResponse>
   >(new Map());
+  const [chatHistory, setChatHistory] = useState<ChatHistoryItem[]>([]);
   const [isInitialized, setIsInitialized] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    const savedMessages = sessionStorage.getItem(SESSION_MESSAGES_KEY);
-    const savedCache = sessionStorage.getItem(SESSION_CACHE_KEY);
-
-    if (savedMessages) {
-      try {
-        const parsed = JSON.parse(savedMessages);
-        console.log("[v0] Restored", parsed.length, "messages from session");
-        setMessages(parsed);
-        setShowCommonQuestions(parsed.length <= 1);
-      } catch (error) {
-        console.error("[v0] Failed to parse saved messages:", error);
+    const loadInitialData = () => {
+      // Load messages from sessionStorage
+      const savedMessages = sessionStorage.getItem(SESSION_MESSAGES_KEY);
+      if (savedMessages) {
+        try {
+          const parsed = JSON.parse(savedMessages);
+          console.log("[v0] Restored", parsed.length, "messages from session");
+          setMessages(parsed);
+          setShowCommonQuestions(parsed.length <= 1);
+        } catch (error) {
+          console.error("[v0] Failed to parse saved messages:", error);
+        }
       }
-    }
 
-    if (savedCache) {
+      // Load shared cache from localStorage
       try {
-        const parsed = JSON.parse(savedCache);
-        const cacheMap = new Map<string, CachedResponse>(
-          Object.entries(parsed) as [string, CachedResponse][]
-        );
-        console.log(
-          "[v0] Restored",
-          cacheMap.size,
-          "cache entries from session"
-        );
-        setResponseCache(cacheMap);
+        const cachedData = localStorage.getItem(SHARED_CACHE_KEY);
+        if (cachedData) {
+          const parsed = JSON.parse(cachedData);
+          const cacheMap = new Map<string, CachedResponse>(
+            Object.entries(parsed) as [string, CachedResponse][]
+          );
+          console.log(
+            "[v0] Restored",
+            cacheMap.size,
+            "cache entries from localStorage"
+          );
+          setResponseCache(cacheMap);
+        }
       } catch (error) {
-        console.error("[v0] Failed to parse saved cache:", error);
+        console.error("[v0] Failed to load shared cache:", error);
       }
-    }
 
-    setIsInitialized(true);
-    inputRef.current?.focus();
+      // Load history from sessionStorage
+      const savedHistory = sessionStorage.getItem(SESSION_HISTORY_KEY);
+      if (savedHistory) {
+        try {
+          const parsed = JSON.parse(savedHistory);
+          console.log(
+            "[v0] Restored",
+            parsed.length,
+            "history items from session"
+          );
+          setChatHistory(parsed);
+        } catch (error) {
+          console.error("[v0] Failed to parse saved history:", error);
+        }
+      }
+
+      setIsInitialized(true);
+      inputRef.current?.focus();
+    };
+
+    loadInitialData();
   }, []);
 
   useEffect(() => {
@@ -99,11 +251,26 @@ const Page = () => {
 
   useEffect(() => {
     if (isInitialized && responseCache.size > 0) {
-      const cacheObj = Object.fromEntries(responseCache);
-      sessionStorage.setItem(SESSION_CACHE_KEY, JSON.stringify(cacheObj));
-      console.log("[v0] Saved", responseCache.size, "cache entries to session");
+      try {
+        const cacheObj = Object.fromEntries(responseCache);
+        localStorage.setItem(SHARED_CACHE_KEY, JSON.stringify(cacheObj));
+        console.log(
+          "[v0] Saved",
+          responseCache.size,
+          "cache entries to localStorage"
+        );
+      } catch (error) {
+        console.error("[v0] Failed to save cache:", error);
+      }
     }
   }, [responseCache, isInitialized]);
+
+  useEffect(() => {
+    if (isInitialized && chatHistory.length > 0) {
+      sessionStorage.setItem(SESSION_HISTORY_KEY, JSON.stringify(chatHistory));
+      console.log("[v0] Saved", chatHistory.length, "history items to session");
+    }
+  }, [chatHistory, isInitialized]);
 
   useEffect(() => {
     scrollToBottom();
@@ -113,55 +280,14 @@ const Page = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
 
-  const loadChatHistory = async () => {
-    try {
-      console.log("[v0] Loading chat history from MongoDB...");
-      const response = await fetch("/api/chat?userEmail=anonymous");
-      if (!response.ok) {
-        console.log("[v0] Failed to fetch chat history");
-        return;
-      }
-
-      const data = await response.json();
-
-      if (data.history && data.history.length > 0) {
-        console.log(`[v0] Loaded ${data.history.length} chat history items`);
-        setChatHistory(data.history.slice(0, 10));
-
-        const cache = new Map<string, CachedResponse>();
-        data.history.forEach((item: any) => {
-          const normalizedQuery = item.question.toLowerCase().trim();
-          const formattedSources = (item.sources || []).map((source: any) => {
-            if (typeof source === "string") {
-              const pageMatch = source.match(/[Pp]age\s*(\d+)/i);
-              const docName = source
-                .replace(/\s*[,;]?\s*[Pp]age\s*\d+/i, "")
-                .trim();
-              return {
-                name: docName || source,
-                page: pageMatch ? Number.parseInt(pageMatch[1]) : undefined,
-              };
-            }
-            return source;
-          });
-          cache.set(normalizedQuery, {
-            answer: item.answer,
-            agent: item.agent || "common",
-            sources: formattedSources,
-            timestamp: new Date(item.timestamp).getTime(),
-          });
-        });
-        setResponseCache(cache);
-        console.log(`[v0] Cache populated with ${cache.size} entries`);
-      }
-    } catch (error) {
-      console.error("[v0] Error loading chat history:", error);
-    }
+  const addToHistory = (question: string) => {
+    const historyItem: ChatHistoryItem = {
+      id: Date.now().toString(),
+      question: question,
+      timestamp: new Date().toISOString(),
+    };
+    setChatHistory((prev) => [historyItem, ...prev]);
   };
-
-  useEffect(() => {
-    loadChatHistory();
-  }, []);
 
   const checkCache = (query: string): CachedResponse | null => {
     const normalizedQuery = query.toLowerCase().trim();
@@ -195,18 +321,39 @@ const Page = () => {
     console.log("[v0] Cache updated for query:", query);
   };
 
+  const getCurrentTime = () => {
+    const now = new Date();
+    return now.toLocaleTimeString("en-US", {
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: true,
+    });
+  };
+
+  const removeVerbatimExtract = (text: string): string => {
+    let cleaned = text.replace(/^Verbatim extract[:\s-]*/i, "");
+    cleaned = cleaned.replace(/^Document:\s*[^\n]+\n*/i, "");
+    cleaned = cleaned.replace(/^[-\s]+/, "");
+    return cleaned.trim();
+  };
+
   const handleSendMessage = async () => {
     if (!input.trim() || isLoading) return;
 
+    const currentTime = getCurrentTime();
     const userMessage: Message = {
       id: Date.now().toString(),
       type: "user",
       content: input.trim(),
-      timestamp: "Just now",
+      timestamp: currentTime,
     };
 
     setMessages((prev) => [...prev, userMessage]);
     const currentInput = input.trim();
+
+    // Add to history
+    addToHistory(currentInput);
+
     setInput("");
     setIsLoading(true);
     setShowCommonQuestions(false);
@@ -219,12 +366,12 @@ const Page = () => {
 
       if (cachedResponse) {
         console.log("[v0] Using CACHED response");
+        const cleanedAnswer = removeVerbatimExtract(cachedResponse.answer);
         const aiMessage: Message = {
           id: (Date.now() + 1).toString(),
           type: "ai",
-          content: cachedResponse.answer,
-          timestamp: "Just now",
-          agent: "cached",
+          content: cleanedAnswer,
+          timestamp: getCurrentTime(),
           sources: cachedResponse.sources,
         };
         setMessages((prev) => [...prev, aiMessage]);
@@ -266,32 +413,31 @@ const Page = () => {
         return source;
       });
 
+      const cleanedAnswer = removeVerbatimExtract(answerText);
+
       const aiMessage: Message = {
         id: (Date.now() + 1).toString(),
         type: "ai",
-        content: answerText,
-        timestamp: "Just now",
-        agent: agentType,
+        content: cleanedAnswer,
+        timestamp: getCurrentTime(),
         sources: sources,
       };
 
       setMessages((prev) => [...prev, aiMessage]);
 
       updateCache(currentInput, {
-        answer: answerText,
+        answer: cleanedAnswer,
         agent: agentType,
         sources: sources,
         timestamp: Date.now(),
       });
-
-      await loadChatHistory();
     } catch (error: any) {
       console.error("[v0] Error:", error);
       const errorMessage: Message = {
         id: (Date.now() + 1).toString(),
         type: "ai",
         content: `Sorry, I encountered an error: ${error.message}. Please try again.`,
-        timestamp: "Just now",
+        timestamp: getCurrentTime(),
       };
       setMessages((prev) => [...prev, errorMessage]);
     } finally {
@@ -312,49 +458,11 @@ const Page = () => {
     console.log(`[v0] Feedback: ${type} for message ${messageId}`);
   };
 
-  const getAgentBadge = (agent?: string) => {
-    if (!agent) return null;
-
-    const agentConfig: Record<
-      string,
-      { color: string; icon: string; label: string }
-    > = {
-      technical: {
-        color: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200",
-        icon: "⚙️",
-        label: "Technical Agent",
-      },
-      customer: {
-        color:
-          "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200",
-        icon: "🤝",
-        label: "Customer Agent",
-      },
-      common: {
-        color: "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200",
-        icon: "💬",
-        label: "Common Agent",
-      },
-      cached: {
-        color:
-          "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200",
-        icon: "⚡",
-        label: "Cached",
-      },
-    };
-
-    const config = agentConfig[agent] || agentConfig.common;
-
-    return (
-      <Badge className={`${config.color} border-0 text-xs mb-2`}>
-        {config.icon} {config.label}
-      </Badge>
-    );
-  };
-
   const handleClearChat = () => {
     if (confirm("Clear current chat? This will start a new conversation.")) {
       sessionStorage.removeItem(SESSION_MESSAGES_KEY);
+      sessionStorage.removeItem(SESSION_HISTORY_KEY);
+
       setMessages([
         {
           id: "1",
@@ -364,28 +472,41 @@ const Page = () => {
           timestamp: "Just now",
         },
       ]);
+
+      setChatHistory([]);
       setShowCommonQuestions(true);
-      console.log("[v0] Chat cleared");
+
+      console.log("[v0] Chat cleared (cache preserved)");
     }
   };
 
+  const getTopCachedQuestions = () => {
+    const cacheEntries = Array.from(responseCache.entries());
+    cacheEntries.sort((a, b) => b[1].timestamp - a[1].timestamp);
+    return cacheEntries.slice(0, 3).map(([question]) => question);
+  };
+
+  const cachedQuestions = getTopCachedQuestions();
+
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-gray-50">
+      {/* Top Navigation */}
       <TopNav />
 
       <div className="flex h-[calc(100vh-73px)]">
+        {/* Sidebar */}
         {sidebarOpen && (
-          <div className="w-72 border-r border-border bg-background p-4">
+          <div className="w-72 border-r border-gray-200 bg-white p-4">
             <div className="mb-6">
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                  Query History
+                <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                  Chat History
                 </h3>
                 <button
                   onClick={() => setSidebarOpen(false)}
-                  className="p-1 hover:bg-muted rounded transition-colors"
+                  className="p-1 hover:bg-gray-100 rounded transition-colors"
                 >
-                  <Menu className="w-4 h-4" />
+                  <X className="w-4 h-4" />
                 </button>
               </div>
 
@@ -393,7 +514,7 @@ const Page = () => {
                 onClick={handleClearChat}
                 variant="outline"
                 size="sm"
-                className="w-full mb-4 bg-transparent"
+                className="w-full mb-4"
               >
                 Clear Current Chat
               </Button>
@@ -401,28 +522,29 @@ const Page = () => {
               <ScrollArea className="h-[calc(100vh-250px)]">
                 <div className="space-y-2">
                   {chatHistory.length === 0 ? (
-                    <p className="text-xs text-muted-foreground text-center py-4">
-                      No history yet
+                    <p className="text-xs text-gray-500 text-center py-8">
+                      No chat history yet
                     </p>
                   ) : (
                     <>
-                      <p className="text-xs text-muted-foreground mb-2">
-                        {chatHistory.length} queries
+                      <p className="text-xs text-gray-500 mb-2">
+                        {chatHistory.length}{" "}
+                        {chatHistory.length === 1 ? "query" : "queries"}
                       </p>
                       {chatHistory.map((item) => (
                         <button
                           key={item.id}
                           onClick={() => handleQueryClick(item.question)}
-                          className="w-full text-left p-3 rounded-lg hover:bg-muted transition-colors group"
+                          className="w-full text-left p-3 rounded-lg hover:bg-gray-50 transition-colors group"
                         >
                           <div className="flex items-start gap-2">
-                            <Clock className="w-4 h-4 text-muted-foreground mt-0.5 flex-shrink-0" />
+                            <Clock className="w-4 h-4 text-gray-400 mt-0.5 flex-shrink-0" />
                             <div className="flex-1 min-w-0">
-                              <p className="text-sm font-medium text-foreground truncate group-hover:text-blue-600">
+                              <p className="text-sm font-medium text-gray-700 truncate group-hover:text-blue-600">
                                 {item.question}
                               </p>
-                              <p className="text-xs text-muted-foreground">
-                                {new Date(item.timestamp).toLocaleDateString()}
+                              <p className="text-xs text-gray-500">
+                                {new Date(item.timestamp).toLocaleString()}
                               </p>
                             </div>
                           </div>
@@ -436,12 +558,13 @@ const Page = () => {
           </div>
         )}
 
+        {/* Main Chat Area */}
         <div className="flex-1 flex flex-col">
           {!sidebarOpen && (
-            <div className="border-b border-border bg-background p-4">
+            <div className="border-b border-gray-200 bg-white p-4">
               <button
                 onClick={() => setSidebarOpen(true)}
-                className="p-2 hover:bg-muted rounded-lg transition-colors"
+                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
               >
                 <Menu className="w-5 h-5" />
               </button>
@@ -450,20 +573,21 @@ const Page = () => {
 
           <ScrollArea className="flex-1 p-6">
             <div className="max-w-3xl mx-auto space-y-6">
-              {showCommonQuestions && messages.length === 1 && (
+              {/* Top 3 Cached Questions - Always show when available */}
+              {cachedQuestions.length > 0 && (
                 <div className="space-y-3">
-                  <p className="text-sm font-medium text-muted-foreground">
-                    Common Questions:
+                  <p className="text-sm font-medium text-gray-600">
+                    Top Cached Questions:
                   </p>
                   <div className="grid grid-cols-1 gap-2">
-                    {COMMON_QUESTIONS.map((question, idx) => (
+                    {cachedQuestions.map((question, idx) => (
                       <button
                         key={idx}
                         onClick={() => {
                           setInput(question);
                           inputRef.current?.focus();
                         }}
-                        className="text-left p-3 rounded-lg border border-border hover:bg-muted transition-colors text-sm"
+                        className="text-left p-3 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors text-sm"
                       >
                         {question}
                       </button>
@@ -472,6 +596,47 @@ const Page = () => {
                 </div>
               )}
 
+              {/* Default Questions - Show only when no cache and initial message */}
+              {showCommonQuestions &&
+                messages.length === 1 &&
+                cachedQuestions.length === 0 && (
+                  <div className="space-y-3">
+                    <p className="text-sm font-medium text-gray-600">
+                      Try asking about:
+                    </p>
+                    <div className="grid grid-cols-1 gap-2">
+                      <button
+                        onClick={() => {
+                          setInput("What is Vertex Eval Service?");
+                          inputRef.current?.focus();
+                        }}
+                        className="text-left p-3 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors text-sm"
+                      >
+                        What is Vertex Eval Service?
+                      </button>
+                      <button
+                        onClick={() => {
+                          setInput("How does RAG work?");
+                          inputRef.current?.focus();
+                        }}
+                        className="text-left p-3 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors text-sm"
+                      >
+                        How does RAG work?
+                      </button>
+                      <button
+                        onClick={() => {
+                          setInput("What are the deployment procedures?");
+                          inputRef.current?.focus();
+                        }}
+                        className="text-left p-3 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors text-sm"
+                      >
+                        What are the deployment procedures?
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+              {/* Messages */}
               {messages.map((message) => (
                 <div key={message.id} className="space-y-3">
                   {message.type === "ai" ? (
@@ -483,16 +648,17 @@ const Page = () => {
                         <div className="text-sm font-semibold mb-2">
                           AI Assistant
                         </div>
-                        {message.agent && getAgentBadge(message.agent)}
-                        <Card className="p-4 bg-card">
-                          <p className="text-sm text-card-foreground leading-relaxed whitespace-pre-wrap">
+                        <Card className="p-4 bg-white border-gray-200">
+                          <p className="text-sm text-gray-800 leading-relaxed whitespace-pre-wrap">
                             {message.content}
                           </p>
                         </Card>
 
                         {message.sources && message.sources.length > 0 && (
                           <div className="mt-3">
-                            <p className="text-xs font-medium mb-2">Sources:</p>
+                            <p className="text-xs font-medium mb-2 text-gray-600">
+                              Sources:
+                            </p>
                             <div className="flex flex-wrap gap-2">
                               {message.sources.map((source, idx) => (
                                 <Badge
@@ -520,7 +686,7 @@ const Page = () => {
                           onFeedback={handleFeedback}
                         />
 
-                        <p className="text-xs text-muted-foreground mt-2">
+                        <p className="text-xs text-gray-500 mt-2">
                           {message.timestamp}
                         </p>
                       </div>
@@ -531,7 +697,7 @@ const Page = () => {
                         <div className="bg-blue-500 text-white rounded-lg p-4">
                           <p className="text-sm">{message.content}</p>
                         </div>
-                        <p className="text-xs text-muted-foreground mt-2 text-right">
+                        <p className="text-xs text-gray-500 mt-2 text-right">
                           {message.timestamp}
                         </p>
                       </div>
@@ -549,8 +715,8 @@ const Page = () => {
                     <div className="text-sm font-semibold mb-2">
                       AI Assistant
                     </div>
-                    <Card className="p-4 bg-card">
-                      <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+                    <Card className="p-4 bg-white border-gray-200">
+                      <Loader2 className="w-5 h-5 animate-spin text-gray-500" />
                     </Card>
                   </div>
                 </div>
@@ -560,7 +726,8 @@ const Page = () => {
             </div>
           </ScrollArea>
 
-          <div className="border-t border-border bg-background p-6">
+          {/* Input Area */}
+          <div className="border-t border-gray-200 bg-white p-6">
             <div className="max-w-3xl mx-auto">
               <div className="flex gap-3">
                 <Input
@@ -585,7 +752,7 @@ const Page = () => {
                   )}
                 </Button>
               </div>
-              <p className="text-xs text-muted-foreground mt-2">
+              <p className="text-xs text-gray-500 mt-2">
                 ⚡ Intelligent caching with multi-agent LLM
               </p>
             </div>

@@ -65,10 +65,10 @@ export function TopNav() {
             >
               <Avatar className="w-8 h-8">
                 <AvatarFallback className="bg-blue-500 text-white text-xs font-bold">
-                  JD
+                  10QB
                 </AvatarFallback>
               </Avatar>
-              <span className="text-sm font-medium">John Doe</span>
+              <span className="text-sm font-medium">10QBit</span>
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-48">
