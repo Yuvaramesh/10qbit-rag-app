@@ -248,7 +248,7 @@ export default function DocumentsPage() {
           </div>
 
           <Button
-            className="bg-blue-500 hover:bg-blue-600 text-white"
+            className="bg-green-800 hover:bg-green-800 text-white"
             onClick={() => setIsDialogOpen(true)}
             disabled={isUploading}
           >

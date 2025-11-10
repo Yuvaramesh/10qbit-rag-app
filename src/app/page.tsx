@@ -7,6 +7,7 @@ import { Input } from "../components/ui/input";
 import { ScrollArea } from "../components/ui/scroll-area";
 import { Badge } from "../components/ui/badge";
 import { Clock, Send, Loader2, FileText, Menu, X } from "lucide-react";
+import { TopNav } from "../components/layout/top-nav";
 
 interface Message {
   id: string;
@@ -32,58 +33,6 @@ interface ChatHistoryItem {
 const SESSION_MESSAGES_KEY = "chat_messages_session";
 const SHARED_CACHE_KEY = "shared_cache";
 const SESSION_HISTORY_KEY = "chat_history_session";
-
-import Link from "next/link";
-
-const TopNav = () => {
-  return (
-    <div className="bg-white border-b border-gray-200">
-      <div className="flex items-center justify-between px-6 py-4">
-        <div className="flex items-center gap-8">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-blue-500 flex items-center justify-center">
-              <span className="text-white font-bold text-lg">A</span>
-            </div>
-            <h1 className="text-xl font-semibold text-gray-900">
-              AI SOP Assistant
-            </h1>
-          </div>
-
-          {/* ✅ Replace <a> with <Link> */}
-          <nav className="flex gap-6">
-            <Link
-              href="/"
-              className="text-blue-600 font-medium border-b-2 border-blue-600 pb-1"
-            >
-              AI SOP Assistant
-            </Link>
-
-            <Link
-              href="/documents"
-              className="text-gray-600 hover:text-gray-900 pb-1"
-            >
-              Documents
-            </Link>
-
-            <Link
-              href="/analytics"
-              className="text-gray-600 hover:text-gray-900 pb-1"
-            >
-              Analytics
-            </Link>
-          </nav>
-        </div>
-
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center">
-            <span className="text-white text-xs font-semibold">10QB</span>
-          </div>
-          <span className="text-sm font-medium text-gray-900">10QBit</span>
-        </div>
-      </div>
-    </div>
-  );
-};
 
 const MessageActions = ({ content, messageId, onFeedback }: any) => {
   const [copied, setCopied] = useState(false);
@@ -490,7 +439,7 @@ const Page = () => {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Top Navigation */}
+      {/* Top Navigation - Using imported component */}
       <TopNav />
 
       <div className="flex h-[calc(100vh-73px)]">
@@ -741,7 +690,7 @@ const Page = () => {
                 />
                 <Button
                   onClick={handleSendMessage}
-                  className="bg-blue-500 hover:bg-blue-600 text-white"
+                  className="bg-green-800 hover:bg-green-800 text-white"
                   size="icon"
                   disabled={isLoading || !input.trim()}
                 >
